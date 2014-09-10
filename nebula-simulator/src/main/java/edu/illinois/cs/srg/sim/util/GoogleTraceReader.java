@@ -16,16 +16,20 @@ import java.util.NoSuchElementException;
  * Created by gourav on 9/4/14.
  */
 public class GoogleTraceReader {
-    private static final Logger LOG = LoggerFactory.getLogger(GoogleTraceIterator.class);
-    private String home;
+  private static final Logger LOG = LoggerFactory.getLogger(GoogleTraceIterator.class);
+  private String home;
 
-    public GoogleTraceReader(String home) {
-        this.home = home;
-    }
+  public GoogleTraceReader(String home) {
+    this.home = home;
+  }
 
-    public Iterator open(String directory) {
-        return new GoogleTraceIterator(home + "/" + directory);
-    }
+  public Iterator open(String directory) {
+    return new GoogleTraceIterator(home + "/" + directory, null);
+  }
+
+  public Iterator open(String directory, String pattern) {
+    return new GoogleTraceIterator(home + "/" + directory, pattern);
+  }
 
 
 }

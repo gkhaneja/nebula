@@ -1,27 +1,107 @@
 package edu.illinois.cs.srg.sim.cluster;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import org.omg.SendingContext.RunTime;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.util.HashMap;
-import java.util.List;
+import java.util.Arrays;
 import java.util.Map;
+
+
+//TODO: Assumption: Not using task_usage data for now. It's huge!
+//TODO: Interpret two special timestamps: 0 and 2^63 - 1
+//TODO: For now, I'm assigning 'random' task durations.
+//Confirmation: All traces are sorted w.r.t timestamps
 
 /**
  * Created by gourav on 9/4/14.
  */
 public class Cluster {
-    private Map<Long, Node> nodes;
+  private static final Logger LOG = LoggerFactory.getLogger(Cluster.class);
+  private Map<Long, Node> nodes;
 
-    public Cluster() {
-        nodes = Maps.newHashMap();
-    }
+  public Cluster() {
+    nodes = Maps.newHashMap();
+  }
 
-    public Cluster(Map<Long, Node> nodes) {
-        this.nodes = nodes;
-    }
+  // TODO: Highly Deprecated. Gonna remove it.
+  @Deprecated
+  public Cluster(Map<Long, Node> nodes) {
+    this.nodes = nodes;
+  }
 
-    public void addNode(Node node) {
-        nodes.put(node.getId(), node);
+  public void add(String[] node) {
+    long id = Long.parseLong(node[1]);
+    if (nodes.containsKey(id) && !nodes.get(id).isDeleted()) {
+      LOG.error("Cannot add node while it already exists: {}" + Arrays.toString(node));
+      throw new RuntimeException("Cannot add node while it already exists: {}" + Arrays.toString(node));
+    } else if (nodes.containsKey(id)) {
+      nodes.get(id).unmarkDeleted(node);
+    } else {
+      nodes.put(id, new Node(node));
     }
+  }
+
+  public void remove(String node[]) {
+    long id = Long.parseLong(node[1]);
+    if (!nodes.containsKey(id) || (nodes.containsKey(id) && nodes.get(id).isDeleted())) {
+      LOG.error("Cannot remove non-existent node: " + Arrays.toString(node));
+      throw new RuntimeException("Cannot remove non-existent node: " + Arrays.toString(node));
+    } else if (nodes.containsKey(id)) {
+      nodes.get(id).markDeleted(node);
+    }
+  }
+
+  public void update(String[] node) {
+    long id = Long.parseLong(node[1]);
+    if (!nodes.containsKey(id) || nodes.get(id).isDeleted()) {
+      LOG.error("Cannot update non-existent node: " + Arrays.toString(node));
+      throw new RuntimeException("Cannot update non-existent node: " + Arrays.toString(node));
+    } else {
+      nodes.get(id).update(node);
+    }
+  }
+
+  public Node get(long id) {
+    return nodes.get(id);
+  }
+
+  public Node safeGet(long id) {
+    if (!nodes.containsKey(id) || nodes.get(id).isDeleted()) {
+      LOG.warn("Cannot return non-existent node: " + id);
+      throw new RuntimeException("Cannot return non-existent node: " + id);
+    }
+    return nodes.get(id);
+  }
+
+  public boolean contains(long id) {
+    return nodes.containsKey(id);
+  }
+
+  public boolean safeContains(long id) {
+    return (nodes.containsKey(id) && !nodes.get(id).isDeleted());
+  }
+
+  public void addAttribute(String[] attribute) {
+    long id = Long.parseLong(attribute[1]);
+    if (!nodes.containsKey(id)) {
+      // TODO: Count these errors. Investigate.
+      //LOG.error("Cannot add attribute for non-existent node: {}", Arrays.toString(attribute));
+      // Do not throw exception. Is this an inconsistency in the trace ? Ignoring it for now.
+      return;
+    }
+    nodes.get(id).addAttribute(attribute[2], attribute[3]);
+  }
+
+  public void removeAttribute(String[] attribute) {
+    long id = Long.parseLong(attribute[1]);
+    if (!nodes.containsKey(id)) {
+      // TODO: Count these errors. Investigate.
+      //LOG.error("Cannot remove attribute for non-existent node: {}", Arrays.toString(attribute));
+      // Do not throw exception. Is this an inconsistency in the trace ? Ignoring it for now.
+      return;
+    }
+    nodes.get(id).removeAttribute(attribute[2]);
+  }
 }
