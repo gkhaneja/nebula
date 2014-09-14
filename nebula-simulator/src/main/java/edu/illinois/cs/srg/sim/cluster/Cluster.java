@@ -12,7 +12,11 @@ import java.util.Map;
 //TODO: Assumption: Not using task_usage data for now. It's huge!
 //TODO: Interpret two special timestamps: 0 and 2^63 - 1
 //TODO: For now, I'm assigning 'random' task durations.
+//TODO: Ignoring constraints after tasks for now.
+//TODO: Add JavaPlot to pom.xml
 //Confirmation: All traces are sorted w.r.t timestamps
+
+// All constraints come after jobs submissions.
 
 /**
  * Created by gourav on 9/4/14.

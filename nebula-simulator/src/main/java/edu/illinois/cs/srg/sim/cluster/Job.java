@@ -110,4 +110,29 @@ public class Job {
       }
     }
   }
+
+  public void endTask(Event event) {
+    if (!tasks.containsKey(EndEvent.getIndex(event.getEvent()))) {
+      LOG.error("Cannot end task for a non-existent job: " + event);
+      throw new RuntimeException("Cannot end task for a non-existent job: " + event);
+    }
+    tasks.remove(EndEvent.getIndex(event.getEvent()));
+  }
+
+  public boolean containsTask(long index) {
+    return tasks.containsKey(index);
+  }
+
+  public void addConstraint(Event constraint) {
+    if (!tasks.containsKey(ConstraintEvent.getIndex(constraint.getEvent()))) {
+      // Measurements.constraintsBeforeTask ++;
+      tasks.put(ConstraintEvent.getIndex(constraint.getEvent()),
+        new Task(ConstraintEvent.getJobID(constraint.getEvent()), ConstraintEvent.getIndex(constraint.getEvent())));
+      // LOG.error("Cannot add constraint for a non-existent task: " + constraint);
+      // throw new RuntimeException("Cannot add constraint for a non-existent task: " + constraint);
+    } else {
+      // Measurements.constraintsAfterTask++;
+    }
+      tasks.get(ConstraintEvent.getIndex(constraint.getEvent())).add(constraint);
+  }
 }

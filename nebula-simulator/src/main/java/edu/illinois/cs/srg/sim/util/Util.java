@@ -1,6 +1,7 @@
 package edu.illinois.cs.srg.sim.util;
 
 import com.google.common.collect.Maps;
+import com.google.common.collect.Table;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -14,7 +15,7 @@ public class Util {
   private static Logger LOG = LoggerFactory.getLogger(Util.class);
 
   private static final Random random = new Random(System.currentTimeMillis());
-  public static final Map<Long, Long> durationStats =Maps.newHashMap();
+  public static final Map<Long, Long> durationStats = Maps.newHashMap();
 
 
   public static Long parseTimestamp(String timestamp) {
@@ -35,8 +36,8 @@ public class Util {
    * @return
    */
   public static long getTaskDuration() {
-    long duration = 0;
-    int type = random.nextInt(3);
+    long duration = 10;
+    /*int type = random.nextInt(3);
     switch (type) {
       case 0:
         // 1 hour.
@@ -51,9 +52,15 @@ public class Util {
         duration = 1 * 1000 * 1000;
     }
     durationStats.put(duration, (durationStats.containsKey(duration) ? durationStats.get(duration) : 0) + 1);
-    LOG.info("duration, type:  " + duration + ", " + type);
+    //LOG.info("duration, type:  " + duration + ", " + type);*/
     return duration;
   }
 
+  public static <T> void increment(Map<T, Long> map, T key) {
+    map.put(key, (map.containsKey(key) ? map.get(key) : 0) + 1);
+  }
 
+  public static <R, C> void increment(Table<R, C, Long> table, R row, C column) {
+    table.put(row, column, (table.contains(row, column) ? table.get(row, column) : 0) + 1);
+  }
 }

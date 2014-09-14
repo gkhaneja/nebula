@@ -1,11 +1,19 @@
 package edu.illinois.cs.srg.sim.cluster;
 
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Created by gourav on 9/8/14.
  */
 public class Task {
+  private static final Logger LOG = LoggerFactory.getLogger(Task.class);
 
   private long index;
   private long jobID;
@@ -21,12 +29,15 @@ public class Task {
   private double diskSpace;
   private int differentMachines;
 
+  private List<Event> constraints;
+
   public Task(String[] task) {
-    if (task.length < 4) {
-      throw new RuntimeException("Unknown Google Trace Format: " + Arrays.toString(task));
-    }
-    this.jobID = Long.parseLong(task[2]);
-    this.index = Long.parseLong(task[3]);
+    this(TaskEvent.getJobID(task), TaskEvent.getIndex(task));
+  }
+
+  public Task(long jobID, long index) {
+    this.jobID = jobID;
+    this.index = index;
     this.state = JobState.UNSUBMITTED;
 
     this.missingInfo = -1;
@@ -38,6 +49,8 @@ public class Task {
     this.memory = -1;
     this.diskSpace = -1;
     this.differentMachines = 0;
+
+    this.constraints = Lists.newArrayList();
   }
 
   public long getIndex() {
@@ -124,4 +137,10 @@ public class Task {
   }
 
 
+  public void add(Event constraint) {
+    constraints.add(constraint);
+    if (constraints.size() > 1000) {
+      // LOG.warn("Too many constraints for task: " + jobID + ", " + index);
+    }
+  }
 }

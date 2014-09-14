@@ -50,7 +50,7 @@ public class JobManager {
 
     if (!jobs.containsKey(jobID)) {
       if (!Constants.DISABLE_RUNTIME_EXCEPTION) {
-        LOG.error("Cannot process tasks for non-existent job: " + Arrays.toString(taskEvent));
+        // LOG.error("Cannot process tasks for non-existent job: " + Arrays.toString(taskEvent));
         // throw new RuntimeException("Cannot process tasks for non-existent job: " + Arrays.toString(taskEvent));
       }
       //TODO: Inconsistency in the trace. There are task events before job events.
@@ -62,4 +62,31 @@ public class JobManager {
   }
 
 
+  public void processEndTaskEvent(Event event) {
+    if (!jobs.containsKey(EndEvent.getJobID(event.getEvent()))) {
+      LOG.error("Cannot end task for a non-existent job: " + event);
+      throw new RuntimeException("Cannot end task for a non-existent job: " + event);
+    }
+    jobs.get(EndEvent.getJobID(event.getEvent())).endTask(event);
+
+  }
+
+  public boolean containsJob(Long id) {
+    return jobs.containsKey(id);
+  }
+
+  public boolean containsTask(long jobID, long index) {
+    return jobs.containsKey(jobID) && jobs.get(jobID).containsTask(index);
+  }
+
+  public void addConstraint(Event constraint) {
+    if (!jobs.containsKey(ConstraintEvent.getJobID(constraint.getEvent()))) {
+      LOG.error("Cannot add constraint for a non-existent job: " + constraint);
+      // throw new RuntimeException("Cannot add constraint for a non-existent job: " + constraint);
+    } else {
+      jobs.get(ConstraintEvent.getJobID(constraint.getEvent())).addConstraint(constraint);
+    }
+
+
+  }
 }

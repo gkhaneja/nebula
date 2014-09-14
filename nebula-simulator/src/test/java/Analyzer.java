@@ -1,20 +1,18 @@
 import com.google.common.collect.HashBasedTable;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import edu.illinois.cs.srg.sim.cluster.Cluster;
-import edu.illinois.cs.srg.sim.cluster.JobEvent;
-import edu.illinois.cs.srg.sim.cluster.JobManager;
-import edu.illinois.cs.srg.sim.cluster.MachineEvent;
+import com.google.common.collect.Table;
+import edu.illinois.cs.srg.sim.cluster.*;
 import edu.illinois.cs.srg.sim.util.Constants;
 import edu.illinois.cs.srg.sim.util.GoogleTraceReader;
 import edu.illinois.cs.srg.sim.util.NebulaConfiguration;
+import edu.illinois.cs.srg.sim.util.Util;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.impl.SimpleLogger;
 
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Random;
+
+import java.util.*;
 
 /**
  * Created by gourav on 9/7/14.
@@ -22,15 +20,13 @@ import java.util.Random;
 public class Analyzer {
   private static final Logger LOG = LoggerFactory.getLogger(Analyzer.class);
 
-
-
   private static Cluster cluster;
   private static JobManager jobManager;
 
   public static void main(String[] args) {
     // TODO: This is not working.
     System.setProperty(SimpleLogger.DEFAULT_LOG_LEVEL_KEY, "debug");
-    // TODO : Bad design.
+    // TODO : Not implemented completely.
     Constants.DISABLE_RUNTIME_EXCEPTION = true;
 
     NebulaConfiguration.init(Analyzer.class.getResourceAsStream(Constants.NEBULA_SITE));
@@ -39,18 +35,106 @@ public class Analyzer {
 
     long startTime = System.currentTimeMillis();
     //Analyzer.analyzeMachines();
-    Analyzer.analyzeTasks();
+    Analyzer.analyzeConstraints();
     LOG.info("Time Taken: {} seconds", (System.currentTimeMillis() - startTime) / 1000);
+  }
+
+  public static void analyzeConstraints() {
+    GoogleTraceReader googleTraceReader =
+      new GoogleTraceReader(NebulaConfiguration.getNebulaSite().getGoogleTraceHome());
+    Iterator<String[]> constraintIterator = googleTraceReader.open(Constants.TASK_CONSTRAINTS);
+
+
+    List<Long> constraints = Lists.newArrayList();
+
+    while (constraintIterator.hasNext()) {
+      String[] event = constraintIterator.next();
+      constraints.add(ConstraintEvent.getJobID(event));
+    }
+    LOG.info("Constraint size: " + constraints.size());
+
+
+
+  }
+
+  public static void constraintsPerJobDistribution() {
+    GoogleTraceReader googleTraceReader =
+      new GoogleTraceReader(NebulaConfiguration.getNebulaSite().getGoogleTraceHome());
+    Iterator<String[]> constraintIterator = googleTraceReader.open(Constants.TASK_CONSTRAINTS);
+    Map<Long, Long> ids = Maps.newHashMap();
+
+    while (constraintIterator.hasNext()) {
+      String[] event = constraintIterator.next();
+      Util.increment(ids, ConstraintEvent.getJobID(event));
+    }
+    LOG.info("ID size: " + ids.size());
+    List<Long> distribution = new ArrayList<Long>(ids.values());
+    Collections.sort(distribution, new Comparator<Long>() {
+      @Override
+      public int compare(Long o1, Long o2) {
+        return -1 * o1.compareTo(o2);
+      }
+    });
+    LOG.info("" + distribution);
+
+
+  }
+
+  public static void constraintsPerTaskDistribution() {
+    GoogleTraceReader googleTraceReader =
+      new GoogleTraceReader(NebulaConfiguration.getNebulaSite().getGoogleTraceHome());
+    Iterator<String[]> constraintIterator = googleTraceReader.open(Constants.TASK_CONSTRAINTS);
+    Table<Long, Long, Long> tasks = HashBasedTable.create();
+
+
+    while (constraintIterator.hasNext()) {
+      String[] event = constraintIterator.next();
+      Util.increment(tasks, ConstraintEvent.getJobID(event), ConstraintEvent.getIndex(event));
+    }
+    LOG.info("ID size: " + tasks.size());
+    List<Long> distribution = new ArrayList<Long>(tasks.values());
+    Collections.sort(distribution, new Comparator<Long>() {
+      @Override
+      public int compare(Long o1, Long o2) {
+        return -1 * o1.compareTo(o2);
+      }
+    });
+    // distribution.subList(0, 100000);
+     LOG.info("" + distribution.subList(0, 100000));
   }
 
   public static void analyzeJobs() {
     GoogleTraceReader googleTraceReader =
       new GoogleTraceReader(NebulaConfiguration.getNebulaSite().getGoogleTraceHome());
     Iterator<String[]> jobIterator = googleTraceReader.open(Constants.JOB_EVENTS);
+    Map<String, Long> names = Maps.newHashMap();
+    Map<String, Long> logicalNames = Maps.newHashMap();
+    Map<Long, Long> ids = Maps.newHashMap();
+    long lastID = 0;
 
     while (jobIterator.hasNext()) {
-      processJobEvent(jobIterator.next());
+      String[] event = jobIterator.next();
+      if (JobEvent.getEventType(event) == JobEvent.SUBMIT) {
+
+      }
+
+      Util.increment(names, JobEvent.getName(event));
+      Util.increment(logicalNames, JobEvent.getLogicalName(event));
+      Util.increment(ids, JobEvent.getID(event));
+      processJobEvent(event);
     }
+
+    LOG.info("Logical name size: " + logicalNames.size());
+    LOG.info("name size: " + names.size());
+    LOG.info("ID size: " + ids.size());
+    List<Long> distribution = new ArrayList<Long>(logicalNames.values());
+    Collections.sort(distribution, new Comparator<Long>() {
+      @Override
+      public int compare(Long o1, Long o2) {
+        return -1 * o1.compareTo(o2);
+      }
+    });
+    LOG.info("" + distribution);
   }
 
   public static void analyzeTasks() {
@@ -194,7 +278,5 @@ public class Analyzer {
         LOG.warn("Unknown Machine Event: {} in {}", eventType, event);
     }
   }
-
-
 }
 

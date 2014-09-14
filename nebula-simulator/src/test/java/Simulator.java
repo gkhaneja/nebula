@@ -1,11 +1,9 @@
 import com.google.common.collect.Queues;
-import edu.illinois.cs.srg.sim.cluster.Cluster;
-import edu.illinois.cs.srg.sim.cluster.JobManager;
-import edu.illinois.cs.srg.sim.cluster.MachineEvent;
-import edu.illinois.cs.srg.sim.cluster.TaskEndEvent;
+import edu.illinois.cs.srg.sim.cluster.*;
 import edu.illinois.cs.srg.sim.util.Constants;
 import edu.illinois.cs.srg.sim.util.GoogleTraceReader;
 import edu.illinois.cs.srg.sim.util.NebulaConfiguration;
+import edu.illinois.cs.srg.sim.util.Util;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.impl.SimpleLogger;
@@ -13,7 +11,6 @@ import org.slf4j.impl.SimpleLogger;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Queue;
-import java.util.Random;
 
 /**
  * Created by gourav on 9/9/14.
@@ -25,7 +22,7 @@ public class Simulator {
 
   private static Cluster cluster;
   private static JobManager jobManager;
-  public static Queue<TaskEndEvent> taskEndEvents;
+  public static Queue<Event> taskEndEvents;
 
   public static void main(String[] args) {
     // TODO: This is not working.
@@ -43,73 +40,127 @@ public class Simulator {
     LOG.info("Time Taken: {} seconds", (System.currentTimeMillis() - startTime) / 1000);
   }
 
-  public static void analyzeJobs() {
-    GoogleTraceReader googleTraceReader =
-      new GoogleTraceReader(NebulaConfiguration.getNebulaSite().getGoogleTraceHome());
-    Iterator<String[]> jobIterator = googleTraceReader.open(Constants.JOB_EVENTS);
-
-    while (jobIterator.hasNext()) {
-      processJobEvent(jobIterator.next());
-    }
-  }
-
   public static void analyzeTasks() {
     GoogleTraceReader googleTraceReader =
       new GoogleTraceReader(NebulaConfiguration.getNebulaSite().getGoogleTraceHome());
     Iterator<String[]> jobIterator = googleTraceReader.open(Constants.JOB_EVENTS);
     Iterator<String[]> taskIterator = googleTraceReader.open(Constants.TASK_EVENTS);
-    String[] jobEvent = null;
-    String[] taskEvent = null;
+    Iterator<String[]> constraintIterator = googleTraceReader.open(Constants.TASK_CONSTRAINTS);
+
+    Event job = null;
     if (jobIterator.hasNext()) {
-      jobEvent = jobIterator.next();
+      job = new Event(jobIterator.next());
     }
+
+    Event task = null;
     if (taskIterator.hasNext()) {
-      taskEvent = taskIterator.next();
+      task = new Event(taskIterator.next());
     }
-    while (jobEvent!=null || taskEvent!=null) {
-      //LOG.info((jobEvent) + " and " + (taskEvent));
-      long jobEventTime = Long.MAX_VALUE;
-      if (jobEvent != null) {
-        jobEventTime = Long.parseLong(jobEvent[0]);
+
+    Event constraint = null;
+    if (constraintIterator.hasNext()) {
+      constraint = new Event(constraintIterator.next());
+    }
+
+    Event end = taskEndEvents.peek();
+    long count = 0;
+
+    while (keepRolling(job, task, constraint, end)) {
+      // LOG.info(job + " " + task + " " + end);
+      if (++count % 1000000 == 0) {
+        // LOG.info(count + " " + job + " " + task + " " + end);
       }
-      long taskEventTime = Long.MAX_VALUE;
-      if (taskEvent != null) {
-        try {
-          taskEventTime = Long.parseLong(taskEvent[0]);
-        } catch (NumberFormatException e) {
-          // Inconsistency in trace usage of 2^64 - 1 instead of 2^63 - 1 to represent events at the end.
-          // LOG.warn("Replacing timestamp from {} to {} in {}", taskEvent[0], Long.MAX_VALUE, taskEvent);
-          taskEventTime = Long.MAX_VALUE;
-        }
+
+      if (taskEndEvents.size() > 10000) {
+        LOG.warn("Currently Active Tasks: " + taskEndEvents.size());
       }
-      if (jobEvent != null && jobEventTime <= taskEventTime) {
-        processJobEvent(jobEvent);
-        jobEvent = null;
-        if (jobIterator.hasNext()) {
-          jobEvent = jobIterator.next();
-        }
-      } else {
-        processTaskEvent(taskEvent);
-        taskEvent = null;
-        if (taskIterator.hasNext()) {
-          taskEvent = taskIterator.next();
-        }
+
+      switch (next(job, task, constraint, end)) {
+        case 0:
+          Measurements.jobEvents++;
+          processJobEvent(job);
+          job = null;
+          if (jobIterator.hasNext()) {
+            job = new Event(jobIterator.next());
+          }
+          break;
+        case 1:
+          Measurements.taskEvents++;
+          processTaskEvent(task);
+          task = null;
+          if (taskIterator.hasNext()) {
+            task = new Event(taskIterator.next());
+          }
+          break;
+        case 2:
+          Measurements.constraintEvents++;
+          processTaskConstraint(constraint);
+          constraint = null;
+          if (constraintIterator.hasNext()) {
+            constraint = new Event(constraintIterator.next());
+          }
+        case 3:
+          // process end event
+          processEndEvent(end);
+          taskEndEvents.poll();
+          break;
+        default:
+          LOG.warn("Unknown event.");
       }
+      end = taskEndEvents.peek();
+    }
+
+    Measurements.print();
+  }
+
+
+
+  private static void processTaskConstraint(Event constraint) {
+    if (constraint == null) {
+      return;
+    }
+    jobManager.addConstraint(constraint);
+
+
+
+  }
+
+
+  private static void processJobEvent(Event event) {
+    if (event == null) {
+      return;
+    }
+    // Only processing SUBMIT events from traces. Other events should come from scheduler.
+    if (JobEvent.getEventType(event) == JobEvent.SUBMIT && !jobManager.containsJob(JobEvent.getID(event))) {
+      Measurements.jobsSubmitted++;
+      jobManager.process(event.getEvent());
     }
   }
 
-  private static void processJobEvent(String[] jobEvent) {
-    if (jobEvent == null) {
+  private static void processTaskEvent(Event event) {
+    if (event == null) {
       return;
     }
-    jobManager.process(jobEvent);
+    if (TaskEvent.getEventType(event.getEvent()) == JobEvent.SUBMIT &&
+      !jobManager.containsTask(TaskEvent.getJobID(event.getEvent()), TaskEvent.getIndex(event.getEvent()))) {
+      Measurements.tasksSubmitted++;
+      jobManager.processTaskEvent(event.getEvent());
+      // timestamp, jobID, index, startTime
+      String[] endEvent = new String[]{
+                                        TaskEvent.getTimestamp(event.getEvent()) + Util.getTaskDuration() + "",
+                                        TaskEvent.getJobID(event.getEvent()) + "",
+                                        TaskEvent.getIndex(event.getEvent()) + "",
+                                        TaskEvent.getTimestamp(event.getEvent()) + ""
+                                      };
+      taskEndEvents.add(new Event(endEvent));
+    }
   }
 
-  private static void processTaskEvent(String[] taskEvent) {
-    if (taskEvent == null) {
+  private static void processEndEvent(Event event) {
+    if (event == null) {
       return;
     }
-    jobManager.processTaskEvent(taskEvent);
+    jobManager.processEndTaskEvent(event);
   }
 
   public static void analyzeMachines() {
@@ -188,6 +239,39 @@ public class Simulator {
         LOG.warn("Unknown Machine Event: {} in {}", eventType, event);
     }
   }
+
+
+  /**
+   * Returns true if there's at least one not null event.
+   * @return
+   */
+  private static boolean keepRolling(Event...events) {
+    for (int i=0; i<events.length; i++) {
+      if (events[i] != null) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Returns the next event to be executed. In case of ties, event with smaller index will be returned.
+   * Delicate. Handle with care!
+   * @param events An array of events.
+   * @return Next event. Returns -1 in case of no-event.
+   */
+  private static int next(Event...events) {
+    int next = -1;
+    long minTime = Long.MAX_VALUE;
+    for (int i=events.length-1 ; i>=0; i--) {
+      if (events[i] != null && events[i].getTime() <= minTime) {
+        next = i;
+        minTime = events[i].getTime();
+      }
+    }
+    return next;
+  }
+
 
 
 }
