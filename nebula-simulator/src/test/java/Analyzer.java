@@ -1,7 +1,4 @@
-import com.google.common.collect.HashBasedTable;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Table;
+import com.google.common.collect.*;
 import edu.illinois.cs.srg.sim.cluster.*;
 import edu.illinois.cs.srg.sim.util.Constants;
 import edu.illinois.cs.srg.sim.util.GoogleTraceReader;
@@ -11,7 +8,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.impl.SimpleLogger;
 
-
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
 import java.util.*;
 
 /**
@@ -23,6 +23,7 @@ public class Analyzer {
   private static Cluster cluster;
   private static JobManager jobManager;
 
+
   public static void main(String[] args) {
     // TODO: This is not working.
     System.setProperty(SimpleLogger.DEFAULT_LOG_LEVEL_KEY, "debug");
@@ -33,10 +34,33 @@ public class Analyzer {
     cluster = new Cluster();
     jobManager = new JobManager();
 
-    long startTime = System.currentTimeMillis();
+    Util.checkpoint();
     //Analyzer.analyzeMachines();
-    Analyzer.analyzeConstraints();
-    LOG.info("Time Taken: {} seconds", (System.currentTimeMillis() - startTime) / 1000);
+    Analyzer.sortConstraints();
+    //checkpoint();
+  }
+
+  public static void tasksPerJobDistribution() {
+    GoogleTraceReader googleTraceReader =
+      new GoogleTraceReader(NebulaConfiguration.getNebulaSite().getGoogleTraceHome());
+    Iterator<String[]> taskIterator = googleTraceReader.open(Constants.TASK_EVENTS);
+
+    Map<Long, Long> tasksDistribution = Maps.newHashMap();
+    while (taskIterator.hasNext()) {
+      String event[] = taskIterator.next();
+      Util.increment(tasksDistribution, TaskEvent.getJobID(event));
+    }
+    LOG.info("Task Distribution #: " + tasksDistribution.size());
+
+    List<Long> distribution = new ArrayList<Long>(tasksDistribution.values());
+    Collections.sort(distribution, new Comparator<Long>() {
+      @Override
+      public int compare(Long o1, Long o2) {
+        return -1 * o1.compareTo(o2);
+      }
+    });
+    // distribution.subList(0, 100000);
+    LOG.info("" + distribution.subList(0, 10000));
   }
 
   public static void analyzeConstraints() {
@@ -52,8 +76,86 @@ public class Analyzer {
       constraints.add(ConstraintEvent.getJobID(event));
     }
     LOG.info("Constraint size: " + constraints.size());
+  }
+
+  public static void createConstrainedTaskArrivalOrder() {
+    GoogleTraceReader googleTraceReader =
+      new GoogleTraceReader(NebulaConfiguration.getNebulaSite().getGoogleTraceHome());
+
+    // Get all the constrained tasks.
+    Iterator<String[]> constraintIterator;
+    constraintIterator = googleTraceReader.open(Constants.TASK_CONSTRAINTS);
+    Set<TaskLight> constrainedTasks = Sets.newHashSet();
+    while (constraintIterator.hasNext()) {
+      String[] event = constraintIterator.next();
+      constrainedTasks.add(new TaskLight(ConstraintEvent.getJobID(event), ConstraintEvent.getIndex(event)));
+    }
+    Util.checkpoint("Iterated through constraints. Got all constrained tasks.");
+
+    // Get the arrival order.
+    List<TaskLight> tasksArrivalOrder = Lists.newArrayList();
+    Set<TaskLight> alreadySeenTasks = Sets.newHashSet();
+    Iterator<String[]> taskIterator = googleTraceReader.open(Constants.TASK_EVENTS);
+    while (taskIterator.hasNext()) {
+      String event[] = taskIterator.next();
+      TaskLight task = new TaskLight(TaskEvent.getJobID(event), TaskEvent.getIndex(event));
+      if (!alreadySeenTasks.contains(task) && constrainedTasks.contains(task)) {
+        tasksArrivalOrder.add(task);
+        alreadySeenTasks.add(task);
+        constrainedTasks.remove(task);
+      }
+    }
+    Util.checkpoint("Iterated through tasks. Got constrained Task arrival order.");
+    //LOG.info("Tasks arrival order #: " + tasksArrivalOrder.size());
+    //LOG.info("" + tasksArrivalOrder);
+  }
+
+  public static void sortConstraints() {
+    GoogleTraceReader googleTraceReader =
+      new GoogleTraceReader(NebulaConfiguration.getNebulaSite().getGoogleTraceHome());
+
+    // Read constrainedTaskArrivalOrder
+    List<TaskLight> tasksArrivalOrder = new ArrayList<TaskLight>();
+    String file = "ConstrainedTaskArrivalOrder";
+    try {
+      BufferedReader reader = new BufferedReader(new FileReader(new File(Util.LOG_HOME + file)));
+      String line = reader.readLine();
+      reader.close();
+      line = line.substring(1, line.length() - 1);
+      // LOG.info("line: " + line.substring(0, 1000) + " ~~~~ " + line.substring(line.length() - 1000, line.length() - 1));
+      List<String> tasksAsString = new ArrayList<String>(Arrays.asList(line.split(",")));
+      for (String taskAsString : tasksAsString) {
+        tasksArrivalOrder.add(new TaskLight(taskAsString));
+      }
+      line = null;
+      tasksAsString.clear();
+    } catch (IOException e) {
+      LOG.error("Cannot write to file: " + Util.LOG_HOME + file, e);
+    }
+    Util.checkpoint("Read constrainedTaskArrivalOrder.");
 
 
+    // Sort all files.
+    for (int i=314; i<=499; i++) {
+
+      String pattern = "part-" + String.format("%05d", i) + "-of-00500.csv";
+      // sort one file 00001.
+      List<String[]> constraints = Lists.newArrayList();
+      Iterator<String[]> constraintIterator =
+        googleTraceReader.open(Constants.TASK_CONSTRAINTS, pattern);
+      while (constraintIterator.hasNext()) {
+        String[] event = constraintIterator.next();
+        constraints.add(event);
+      }
+
+      Collections.sort(constraints, new TaskArrivalComparator(tasksArrivalOrder));
+      // checkpoint("Created sorted constraints order.");
+
+      // Writing to file.
+      Util.print(constraints, pattern);
+      constraints.clear();
+      Util.checkpoint("Sorted file " + pattern + ".");
+    }
 
   }
 
@@ -84,14 +186,14 @@ public class Analyzer {
     GoogleTraceReader googleTraceReader =
       new GoogleTraceReader(NebulaConfiguration.getNebulaSite().getGoogleTraceHome());
     Iterator<String[]> constraintIterator = googleTraceReader.open(Constants.TASK_CONSTRAINTS);
-    Table<Long, Long, Long> tasks = HashBasedTable.create();
+    Table<Long, Integer, Long> tasks = HashBasedTable.create();
 
 
     while (constraintIterator.hasNext()) {
       String[] event = constraintIterator.next();
       Util.increment(tasks, ConstraintEvent.getJobID(event), ConstraintEvent.getIndex(event));
     }
-    LOG.info("ID size: " + tasks.size());
+    LOG.info("Task size: " + tasks.size());
     List<Long> distribution = new ArrayList<Long>(tasks.values());
     Collections.sort(distribution, new Comparator<Long>() {
       @Override

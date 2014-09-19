@@ -19,6 +19,9 @@ public class GoogleTraceIterator implements Iterator {
   private int currentFile;
   private String lastLine;
   private BufferedReader reader;
+  private TimeTracker timeTracker;
+
+  private static long startTime = 0;
 
   public GoogleTraceIterator(String directory, String filePattern) throws IllegalArgumentException {
     if (filePattern == null) {
@@ -43,6 +46,9 @@ public class GoogleTraceIterator implements Iterator {
     Arrays.sort(files);
     this.currentFile = -1;
     this.lastLine = null;
+    if (directory.contains(Constants.TASK_EVENTS)) {
+      timeTracker = new TimeTracker("Task Event Reader: ");
+    }
     nextFile();
   }
 
@@ -103,6 +109,10 @@ public class GoogleTraceIterator implements Iterator {
   public void remove() {
   }
 
+  public String getFile() {
+    return this.files[this.currentFile];
+  }
+
   /**
    * Opens the next file according to currentFile.
    * @throws NoSuchElementException if all files are exhausted.
@@ -110,6 +120,9 @@ public class GoogleTraceIterator implements Iterator {
   private void nextFile() throws NoSuchElementException {
     if (reader != null) {
       try {
+        if (LOG.isDebugEnabled() && timeTracker != null) {
+          timeTracker.checkpoint("Done with " + this.directory + "/" + files[this.currentFile]);
+        }
         reader.close();
       } catch (IOException e) {
         LOG.warn("Unable to close file stream for " + this.directory + "/" + files[this.currentFile], e);
@@ -120,11 +133,13 @@ public class GoogleTraceIterator implements Iterator {
       throw new NoSuchElementException("No more files. Total files read: " + this.currentFile);
     }
     try {
-       LOG.info("Reading " + this.directory + "/" + files[this.currentFile]);
+      // LOG.info("Reading " + this.directory + "/" + files[this.currentFile]);
       reader = new BufferedReader(new FileReader(this.directory + "/" + files[this.currentFile]));
     } catch (FileNotFoundException e) {
       LOG.error("Unable to open file " + this.directory + "/" + files[this.currentFile], e);
       nextFile();
     }
   }
+
+
 }

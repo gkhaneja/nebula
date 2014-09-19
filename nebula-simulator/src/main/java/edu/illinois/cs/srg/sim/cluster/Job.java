@@ -22,7 +22,7 @@ public class Job {
   private String name;
   private String logicalName;
 
-  private Map<Long, Task> tasks;
+  private Map<Integer, Task> tasks;
 
   public Job(String[] job) {
     if (job.length < 4) {
@@ -92,9 +92,10 @@ public class Job {
   }
 
   public void process(String[] taskEvent) {
-    long index = Long.parseLong(taskEvent[3]);
+    int index = TaskEvent.getIndex(taskEvent); // Long.parseLong(taskEvent[3]);
     int eventType = Integer.parseInt(taskEvent[5]);
     if (eventType == JobEvent.SUBMIT && !tasks.containsKey(index)) {
+
       // create a job object
       tasks.put(index, new Task(taskEvent));
     }
@@ -113,9 +114,10 @@ public class Job {
 
   public void endTask(Event event) {
     if (!tasks.containsKey(EndEvent.getIndex(event.getEvent()))) {
-      LOG.error("Cannot end task for a non-existent job: " + event);
-      throw new RuntimeException("Cannot end task for a non-existent job: " + event);
+      LOG.error("Cannot end task for a non-existent task: " + event);
+      throw new RuntimeException("Cannot end task for a non-existent task: " + event);
     }
+
     tasks.remove(EndEvent.getIndex(event.getEvent()));
   }
 
@@ -126,10 +128,10 @@ public class Job {
   public void addConstraint(Event constraint) {
     if (!tasks.containsKey(ConstraintEvent.getIndex(constraint.getEvent()))) {
       // Measurements.constraintsBeforeTask ++;
-      tasks.put(ConstraintEvent.getIndex(constraint.getEvent()),
-        new Task(ConstraintEvent.getJobID(constraint.getEvent()), ConstraintEvent.getIndex(constraint.getEvent())));
-      // LOG.error("Cannot add constraint for a non-existent task: " + constraint);
-      // throw new RuntimeException("Cannot add constraint for a non-existent task: " + constraint);
+      //tasks.put(ConstraintEvent.getIndex(constraint.getEvent()),
+        //new Task(ConstraintEvent.getJobID(constraint.getEvent()), ConstraintEvent.getIndex(constraint.getEvent())));
+       LOG.error("Cannot add constraint for a non-existent task: " + constraint);
+       throw new RuntimeException("Cannot add constraint for a non-existent task: " + constraint);
     } else {
       // Measurements.constraintsAfterTask++;
     }

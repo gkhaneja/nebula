@@ -29,10 +29,11 @@ public class JobManager {
 
 
   public void process(String[] jobEvent) {
-    long id = Long.parseLong(jobEvent[2]);
-    int eventType = Integer.parseInt(jobEvent[3]);
+    long id = JobEvent.getID(jobEvent);
+    int eventType = JobEvent.getEventType(jobEvent);
     if (eventType == JobEvent.SUBMIT && !jobs.containsKey(id)) {
       // create a job object
+
       jobs.put(id, new Job(jobEvent));
     }
     if (!jobs.containsKey(id)) {
@@ -46,7 +47,7 @@ public class JobManager {
   }
 
   public void processTaskEvent(String[] taskEvent) {
-    long jobID = Long.parseLong(taskEvent[2]);
+    long jobID = TaskEvent.getJobID(taskEvent); //Long.parseLong(taskEvent[2]);
 
     if (!jobs.containsKey(jobID)) {
       if (!Constants.DISABLE_RUNTIME_EXCEPTION) {
@@ -56,6 +57,7 @@ public class JobManager {
       //TODO: Inconsistency in the trace. There are task events before job events.
       // Since the number of such inconsistencies is not small enough, I'm ignoring this error
       // by creating the job itself.
+
       jobs.put(jobID, new Job(taskEvent));
     }
     jobs.get(jobID).process(taskEvent);

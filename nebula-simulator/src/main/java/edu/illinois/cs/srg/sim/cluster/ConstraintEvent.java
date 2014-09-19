@@ -12,8 +12,8 @@ public class ConstraintEvent {
     return Long.parseLong(event[1]);
   }
 
-  public static long getIndex(String[] event) {
-    return Long.parseLong(event[2]);
+  public static int getIndex(String[] event) {
+    return Integer.parseInt(event[2]);
   }
 
   public static int getOperator(String[] event) {

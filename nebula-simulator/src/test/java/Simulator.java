@@ -1,16 +1,17 @@
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import com.google.common.collect.Queues;
+import com.google.common.collect.Sets;
 import edu.illinois.cs.srg.sim.cluster.*;
-import edu.illinois.cs.srg.sim.util.Constants;
-import edu.illinois.cs.srg.sim.util.GoogleTraceReader;
-import edu.illinois.cs.srg.sim.util.NebulaConfiguration;
-import edu.illinois.cs.srg.sim.util.Util;
+import edu.illinois.cs.srg.sim.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.slf4j.impl.SimpleLogger;
 
-import java.util.Arrays;
-import java.util.Iterator;
-import java.util.Queue;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.*;
 
 /**
  * Created by gourav on 9/9/14.
@@ -18,21 +19,24 @@ import java.util.Queue;
 public class Simulator {
   private static final Logger LOG = LoggerFactory.getLogger(Simulator.class);
 
-
-
   private static Cluster cluster;
   private static JobManager jobManager;
+  private static Map<Integer, String[]> lastConstraintEvents;
+
+  // We no more need seenTasks because we have collected submit tasks already :)
+  private static Map<Long, Set<Integer>> seenTasks;
+
   public static Queue<Event> taskEndEvents;
 
   public static void main(String[] args) {
-    // TODO: This is not working.
-    System.setProperty(SimpleLogger.DEFAULT_LOG_LEVEL_KEY, "debug");
-    // TODO : Bad design.
     // Constants.DISABLE_RUNTIME_EXCEPTION = true;
 
     NebulaConfiguration.init(Simulator.class.getResourceAsStream(Constants.NEBULA_SITE));
     cluster = new Cluster();
     jobManager = new JobManager();
+    lastConstraintEvents = Maps.newHashMap();
+    seenTasks = Maps.newHashMap();
+
     taskEndEvents = Queues.newPriorityQueue();
     long startTime = System.currentTimeMillis();
     //Simulator.analyzeMachines();
@@ -40,12 +44,99 @@ public class Simulator {
     LOG.info("Time Taken: {} seconds", (System.currentTimeMillis() - startTime) / 1000);
   }
 
+  //TODO: Known Bug: Adds a new line during the start of the file.
+  public static void extractSUBMITEvents() {
+    TimeTracker timeTracker = new TimeTracker("HOT");
+    GoogleTraceReader googleTraceReader =
+      new GoogleTraceReader(NebulaConfiguration.getNebulaSite().getGoogleTraceHome());
+    GoogleTraceIterator taskIterator = (GoogleTraceIterator) googleTraceReader.open(Constants.TASK_EVENTS);
+
+    StringBuilder content = new StringBuilder();
+
+
+    String currentFile = taskIterator.getFile();
+    BufferedWriter writer = null;
+
+    try {
+      writer = openFile(currentFile);
+      while (taskIterator.hasNext()) {
+        // Reset file.
+        if (currentFile!=taskIterator.getFile()) {
+          writer.write(content.toString());
+          content.delete(0, content.length()-1);
+          currentFile = taskIterator.getFile();
+          writer.close();
+          writer = openFile(currentFile);
+        }
+        if (content.length() > 100000000) {
+          writer.write(content.toString());
+          content.delete(0, content.length()-1);
+        }
+        String[] event = taskIterator.next();
+        long jobID = TaskEvent.getJobID(event);
+        int index = TaskEvent.getIndex(event);
+
+        if (seenTasks.containsKey(jobID)) {
+          if (!seenTasks.get(jobID).contains(index)) {
+            seenTasks.get(jobID).add(index);
+            content.append(getLine(event));
+          }
+        } else {
+          Set<Integer> indices = Sets.newHashSet();
+          indices.add(index);
+          seenTasks.put(jobID, indices);
+          content.append(getLine(event));
+        }
+      }
+      writer.write(content.toString());
+      content.delete(0, content.length() - 1);
+      writer.close();
+    } catch (IOException e) {
+      LOG.error("Cannot write to file: " + currentFile, e);
+      return;
+    }
+  }
+
+  private static BufferedWriter openFile(String currentFile) throws IOException {
+    String dir = "/Users/gourav/projects/nebula/task_events/";
+    File file = new File(dir + currentFile);
+    if (!file.exists()) {
+      file.createNewFile();
+    }
+
+    return new BufferedWriter(new FileWriter(file));
+
+  }
+
+
+  private static String getLine(String[] entry) {
+    StringBuilder line = new StringBuilder(50);
+    for (int i = 0; i < TaskEvent.SIZE; i++) {
+      if (i < entry.length) {
+        line.append(entry[i]);
+      }
+      if (i < TaskEvent.SIZE - 1) {
+        line.append(",");
+      }
+    }
+    line.append("\n");
+    return line.toString();
+  }
+
+
+
   public static void analyzeTasks() {
     GoogleTraceReader googleTraceReader =
       new GoogleTraceReader(NebulaConfiguration.getNebulaSite().getGoogleTraceHome());
     Iterator<String[]> jobIterator = googleTraceReader.open(Constants.JOB_EVENTS);
-    Iterator<String[]> taskIterator = googleTraceReader.open(Constants.TASK_EVENTS);
-    Iterator<String[]> constraintIterator = googleTraceReader.open(Constants.TASK_CONSTRAINTS);
+    Iterator<String[]> taskIterator = googleTraceReader.open(Constants.SUBMIT_TASK_EVENTS);
+    // Iterator<String[]> constraintIterator = googleTraceReader.open(Util.LOG_HOME, "", "part-00000-of-00500.csv");
+
+    List<Iterator<String[]>> constraintIterators = Lists.newArrayList();
+    for (int i=0; i<=313; i++) {
+      String pattern = "part-" + String.format("%05d", i) + "-of-00500.csv";
+      constraintIterators.add(googleTraceReader.open(Constants.SORTED_TASK_CONSTRAINTS, pattern));
+    }
 
     Event job = null;
     if (jobIterator.hasNext()) {
@@ -57,25 +148,11 @@ public class Simulator {
       task = new Event(taskIterator.next());
     }
 
-    Event constraint = null;
-    if (constraintIterator.hasNext()) {
-      constraint = new Event(constraintIterator.next());
-    }
-
     Event end = taskEndEvents.peek();
-    long count = 0;
 
-    while (keepRolling(job, task, constraint, end)) {
-      // LOG.info(job + " " + task + " " + end);
-      if (++count % 1000000 == 0) {
-        // LOG.info(count + " " + job + " " + task + " " + end);
-      }
+    while (keepRolling(job, task, end)) {
 
-      if (taskEndEvents.size() > 10000) {
-        LOG.warn("Currently Active Tasks: " + taskEndEvents.size());
-      }
-
-      switch (next(job, task, constraint, end)) {
+      switch (next(job, task, end)) {
         case 0:
           Measurements.jobEvents++;
           processJobEvent(job);
@@ -86,20 +163,13 @@ public class Simulator {
           break;
         case 1:
           Measurements.taskEvents++;
-          processTaskEvent(task);
+          processSubmitTaskEvent(task, constraintIterators);
           task = null;
           if (taskIterator.hasNext()) {
             task = new Event(taskIterator.next());
           }
           break;
         case 2:
-          Measurements.constraintEvents++;
-          processTaskConstraint(constraint);
-          constraint = null;
-          if (constraintIterator.hasNext()) {
-            constraint = new Event(constraintIterator.next());
-          }
-        case 3:
           // process end event
           processEndEvent(end);
           taskEndEvents.poll();
@@ -109,20 +179,24 @@ public class Simulator {
       }
       end = taskEndEvents.peek();
     }
-
+    // Validation: all constraints are accounted for.
+    for (int i=0; i<constraintIterators.size(); i++) {
+      if (constraintIterators.get(i).hasNext()) {
+        LOG.error("Inconsistency: There are constraints left to read.");
+      }
+    }
     Measurements.print();
   }
 
 
 
+
+  // Not used.
   private static void processTaskConstraint(Event constraint) {
     if (constraint == null) {
       return;
     }
     jobManager.addConstraint(constraint);
-
-
-
   }
 
 
@@ -137,29 +211,90 @@ public class Simulator {
     }
   }
 
-  private static void processTaskEvent(Event event) {
+  private static void processSubmitTaskEvent(Event event, List<Iterator<String[]>> constraintIterators) {
     if (event == null) {
       return;
     }
-    if (TaskEvent.getEventType(event.getEvent()) == JobEvent.SUBMIT &&
-      !jobManager.containsTask(TaskEvent.getJobID(event.getEvent()), TaskEvent.getIndex(event.getEvent()))) {
-      Measurements.tasksSubmitted++;
-      jobManager.processTaskEvent(event.getEvent());
-      // timestamp, jobID, index, startTime
-      String[] endEvent = new String[]{
-                                        TaskEvent.getTimestamp(event.getEvent()) + Util.getTaskDuration() + "",
-                                        TaskEvent.getJobID(event.getEvent()) + "",
-                                        TaskEvent.getIndex(event.getEvent()) + "",
-                                        TaskEvent.getTimestamp(event.getEvent()) + ""
-                                      };
-      taskEndEvents.add(new Event(endEvent));
+    long jobID = TaskEvent.getJobID(event.getEvent());
+    int index = TaskEvent.getIndex(event.getEvent());
+    TaskLight taskLight = new TaskLight(jobID, index);
+
+    // Reading only submit task events.
+    //if (TaskEvent.getEventType(event.getEvent()) == JobEvent.SUBMIT &&
+    //!jobManager.containsTask(TaskEvent.getJobID(event.getEvent()), TaskEvent.getIndex(event.getEvent()))) {
+    // !(seenTasks.containsKey(jobID) && seenTasks.get(jobID).contains(index) )) {
+    // seenTasks.add(jobID + "-" + index);
+
+    Measurements.tasksSubmitted++;
+
+    // 1. Add task
+    jobManager.processTaskEvent(event.getEvent());
+
+    // 2. Add end event
+    // timestamp, jobID, index, startTime
+    String[] endEvent = new String[]{
+      TaskEvent.getTimestamp(event.getEvent()) + Util.getTaskDuration() + "",
+      TaskEvent.getJobID(event.getEvent()) + "",
+      TaskEvent.getIndex(event.getEvent()) + "",
+      TaskEvent.getTimestamp(event.getEvent()) + ""
+    };
+
+    taskEndEvents.add(new Event(endEvent));
+
+    // 3. Add constraints
+    // TODO: Add it man, currently only iterating through them, right ?
+    // TODO: What about 19m constraints thing ?
+
+    long countOfConstraints=0;
+    for (int i=0; i<constraintIterators.size(); i++) {
+      // process constraints from ith file.
+      if (lastConstraintEvents.containsKey(i) && lastConstraintEvents.get(i) != null) {
+        String[] lastConstraintEvent = lastConstraintEvents.get(i);
+        if (jobID == ConstraintEvent.getJobID(lastConstraintEvent) &&
+          index == ConstraintEvent.getIndex(lastConstraintEvent)) {
+          countOfConstraints++;
+          lastConstraintEvents.remove(i);
+
+
+        } else {
+          continue;
+        }
+      }
+      while (constraintIterators.get(i).hasNext()) {
+        String[] constraint = constraintIterators.get(i).next();
+        if (jobID == ConstraintEvent.getJobID(constraint) && index == ConstraintEvent.getIndex(constraint)) {
+          countOfConstraints++;
+        } else {
+          lastConstraintEvents.put(i, constraint);
+          break;
+        }
+      }
     }
+    if (countOfConstraints > 0) {
+      Measurements.constrainedTasksCount++;
+    } else {
+      Measurements.freeTasksCount++;
+    }
+
+    //} else {
+    //LOG.error("Got a task, which was submitted earlier.");
+    //}
   }
 
   private static void processEndEvent(Event event) {
     if (event == null) {
       return;
     }
+    /*long jobID = EndEvent.getJobID(event.getEvent());
+    int index = EndEvent.getIndex(event.getEvent());
+    if (seenTasks.containsKey(jobID)) {
+      seenTasks.get(jobID).add(index);
+    } else {
+      Set<Integer> indices = Sets.newHashSet();
+      indices.add(index);
+      seenTasks.put(jobID, indices);
+    }*/
+
     jobManager.processEndTaskEvent(event);
   }
 

@@ -27,6 +27,10 @@ public class GoogleTraceReader {
     return new GoogleTraceIterator(home + "/" + directory, null);
   }
 
+  public Iterator open(String directory, String file, String pattern) {
+    return new GoogleTraceIterator(directory + "/" + file, pattern);
+  }
+
   public Iterator open(String directory, String pattern) {
     return new GoogleTraceIterator(home + "/" + directory, pattern);
   }

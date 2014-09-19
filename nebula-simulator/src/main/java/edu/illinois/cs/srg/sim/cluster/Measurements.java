@@ -23,6 +23,9 @@ public class Measurements {
   public static long constraintsAfterTask = 0;
   public static long constraintsBeforeTask = 0;
 
+  public static long constrainedTasksCount = 0;
+  public static long freeTasksCount = 0;
+
   public static void print() {
     LOG.info("Constraints before tasks: " + Measurements.constraintsBeforeTask);
     LOG.info("Constraints after tasks: " + Measurements.constraintsAfterTask);
@@ -32,6 +35,9 @@ public class Measurements {
     LOG.info("Constraints events: " + Measurements.constraintEvents);
     LOG.info("Job submitted: " + Measurements.jobsSubmitted);
     LOG.info("Task submitted: " + Measurements.tasksSubmitted);
+
+    LOG.info("constrainedTasksCount: " + Measurements.constrainedTasksCount);
+    LOG.info("freeTasksCount: " + Measurements.freeTasksCount);
   }
 
 }
