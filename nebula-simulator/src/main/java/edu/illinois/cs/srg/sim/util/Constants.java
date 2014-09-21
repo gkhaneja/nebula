@@ -20,6 +20,10 @@ public class Constants {
   // TODO: Not implemented completely.
   public static boolean DISABLE_RUNTIME_EXCEPTION = false;
 
+  public static final String DEFAULT_JOB_NAME = "default";
+
+  public static final String HOME_GRAPHS = "/Users/gourav/projects/googleTraceData/clusterdata-2011-1/graphs";
+
 
 
 }

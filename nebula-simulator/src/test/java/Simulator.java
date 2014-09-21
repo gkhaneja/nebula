@@ -22,6 +22,7 @@ public class Simulator {
   private static Cluster cluster;
   private static JobManager jobManager;
   private static Map<Integer, String[]> lastConstraintEvents;
+  private static Map<String, Application> applications;
 
   // We no more need seenTasks because we have collected submit tasks already :)
   private static Map<Long, Set<Integer>> seenTasks;
@@ -36,11 +37,12 @@ public class Simulator {
     jobManager = new JobManager();
     lastConstraintEvents = Maps.newHashMap();
     seenTasks = Maps.newHashMap();
+    applications = Maps.newHashMap();
 
     taskEndEvents = Queues.newPriorityQueue();
     long startTime = System.currentTimeMillis();
     //Simulator.analyzeMachines();
-    Simulator.analyzeTasks();
+    Simulator.simulate();
     LOG.info("Time Taken: {} seconds", (System.currentTimeMillis() - startTime) / 1000);
   }
 
@@ -125,12 +127,19 @@ public class Simulator {
 
 
 
-  public static void analyzeTasks() {
+  public static void simulate() {
+
+    //TODO: Initializations : give cluster copies to apps, perhaps.
+    //init();
+
     GoogleTraceReader googleTraceReader =
       new GoogleTraceReader(NebulaConfiguration.getNebulaSite().getGoogleTraceHome());
     Iterator<String[]> jobIterator = googleTraceReader.open(Constants.JOB_EVENTS);
     Iterator<String[]> taskIterator = googleTraceReader.open(Constants.SUBMIT_TASK_EVENTS);
     // Iterator<String[]> constraintIterator = googleTraceReader.open(Util.LOG_HOME, "", "part-00000-of-00500.csv");
+
+    Iterator<String[]> attributeIterator = googleTraceReader.open(Constants.MACHINE_ATTRIBUTES);
+    Iterator<String[]> machineIterator = googleTraceReader.open(Constants.MACHINE_EVENTS);
 
     List<Iterator<String[]>> constraintIterators = Lists.newArrayList();
     for (int i=0; i<=313; i++) {
@@ -148,12 +157,39 @@ public class Simulator {
       task = new Event(taskIterator.next());
     }
 
+    Event machine = null;
+    if (machineIterator.hasNext()) {
+      machine = new Event(machineIterator.next());
+    }
+
+    Event attribute = null;
+    if (attributeIterator.hasNext()) {
+      attribute = new Event(attributeIterator.next());
+    }
+
     Event end = taskEndEvents.peek();
 
-    while (keepRolling(job, task, end)) {
+    while (keepRolling(machine, attribute, job, task, end)) {
 
-      switch (next(job, task, end)) {
+      switch (next(machine, attribute, job, task, end)) {
         case 0:
+          // process machine event
+          processMachineEvent(machine.getEvent());
+          machine = null;
+          if (machineIterator.hasNext()) {
+            machine = new Event(machineIterator.next());
+          }
+          break;
+        case 1:
+          // process attribute event
+          processMachineAttribute(attribute.getEvent());
+          attribute = null;
+          if (attributeIterator.hasNext()) {
+            attribute = new Event(attributeIterator.next());
+          }
+          break;
+        case 2:
+          // process job event
           Measurements.jobEvents++;
           processJobEvent(job);
           job = null;
@@ -161,7 +197,8 @@ public class Simulator {
             job = new Event(jobIterator.next());
           }
           break;
-        case 1:
+        case 3:
+          // process task event
           Measurements.taskEvents++;
           processSubmitTaskEvent(task, constraintIterators);
           task = null;
@@ -169,7 +206,7 @@ public class Simulator {
             task = new Event(taskIterator.next());
           }
           break;
-        case 2:
+        case 4:
           // process end event
           processEndEvent(end);
           taskEndEvents.poll();
@@ -207,7 +244,17 @@ public class Simulator {
     // Only processing SUBMIT events from traces. Other events should come from scheduler.
     if (JobEvent.getEventType(event) == JobEvent.SUBMIT && !jobManager.containsJob(JobEvent.getID(event))) {
       Measurements.jobsSubmitted++;
-      jobManager.process(event.getEvent());
+      Job job = jobManager.process(event.getEvent());
+
+      // submit job to the app.
+      String appName = JobEvent.getLogicalName(event);
+      if (appName.equals("")) {
+        appName = Constants.DEFAULT_JOB_NAME;
+      }
+      if (!applications.containsKey(appName)) {
+        applications.put(appName, new Application(appName));
+      }
+      applications.get(appName).add(job);
     }
   }
 
@@ -224,28 +271,18 @@ public class Simulator {
     //!jobManager.containsTask(TaskEvent.getJobID(event.getEvent()), TaskEvent.getIndex(event.getEvent()))) {
     // !(seenTasks.containsKey(jobID) && seenTasks.get(jobID).contains(index) )) {
     // seenTasks.add(jobID + "-" + index);
+    //} else {
+    //LOG.error("Got a task, which was submitted earlier.");
+    //}
 
     Measurements.tasksSubmitted++;
 
-    // 1. Add task
-    jobManager.processTaskEvent(event.getEvent());
-
-    // 2. Add end event
-    // timestamp, jobID, index, startTime
-    String[] endEvent = new String[]{
-      TaskEvent.getTimestamp(event.getEvent()) + Util.getTaskDuration() + "",
-      TaskEvent.getJobID(event.getEvent()) + "",
-      TaskEvent.getIndex(event.getEvent()) + "",
-      TaskEvent.getTimestamp(event.getEvent()) + ""
-    };
-
-    taskEndEvents.add(new Event(endEvent));
-
-    // 3. Add constraints
+    // 1. Get all constraints associated with the task.
     // TODO: Add it man, currently only iterating through them, right ?
     // TODO: What about 19m constraints thing ?
 
     long countOfConstraints=0;
+    List<String[]> currentConstraints = Lists.newArrayList();
     for (int i=0; i<constraintIterators.size(); i++) {
       // process constraints from ith file.
       if (lastConstraintEvents.containsKey(i) && lastConstraintEvents.get(i) != null) {
@@ -253,9 +290,7 @@ public class Simulator {
         if (jobID == ConstraintEvent.getJobID(lastConstraintEvent) &&
           index == ConstraintEvent.getIndex(lastConstraintEvent)) {
           countOfConstraints++;
-          lastConstraintEvents.remove(i);
-
-
+          currentConstraints.add(lastConstraintEvents.remove(i));
         } else {
           continue;
         }
@@ -264,6 +299,7 @@ public class Simulator {
         String[] constraint = constraintIterators.get(i).next();
         if (jobID == ConstraintEvent.getJobID(constraint) && index == ConstraintEvent.getIndex(constraint)) {
           countOfConstraints++;
+          currentConstraints.add(constraint);
         } else {
           lastConstraintEvents.put(i, constraint);
           break;
@@ -276,9 +312,30 @@ public class Simulator {
       Measurements.freeTasksCount++;
     }
 
-    //} else {
-    //LOG.error("Got a task, which was submitted earlier.");
-    //}
+    // process constraints for current task.
+    // 2. Add task
+    jobManager.processTaskEvent(event.getEvent(), currentConstraints);
+
+    // 3. Ask the application to schedule the task.
+    //TODO: Should there be some delay associated here, depending on the application's busyness.
+    // Right now, I'm making the scheduling instantaneous.
+    Job job = jobManager.get(jobID);
+    if (!applications.containsKey(job.getLogicalName())) {
+      LOG.error("Cannot add task for non-existent application: " + event);
+      throw new RuntimeException("Cannot add task for non-existent application: " + event);
+    }
+    applications.get(job.getLogicalName()).schedule(job, index);
+
+    // 4. Add 'end' event
+    // timestamp, jobID, index, startTime
+    String[] endEvent = new String[]{
+      TaskEvent.getTimestamp(event.getEvent()) + Util.getTaskDuration() + "",
+      TaskEvent.getJobID(event.getEvent()) + "",
+      TaskEvent.getIndex(event.getEvent()) + "",
+      TaskEvent.getTimestamp(event.getEvent()) + ""
+    };
+
+    taskEndEvents.add(new Event(endEvent));
   }
 
   private static void processEndEvent(Event event) {

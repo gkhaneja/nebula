@@ -1,4 +1,7 @@
 import com.google.common.collect.*;
+import com.panayotis.gnuplot.JavaPlot;
+import com.panayotis.gnuplot.terminal.ImageTerminal;
+import com.panayotis.gnuplot.terminal.PostscriptTerminal;
 import edu.illinois.cs.srg.sim.cluster.*;
 import edu.illinois.cs.srg.sim.util.Constants;
 import edu.illinois.cs.srg.sim.util.GoogleTraceReader;
@@ -36,7 +39,7 @@ public class Analyzer {
 
     Util.checkpoint();
     //Analyzer.analyzeMachines();
-    Analyzer.sortConstraints();
+    Analyzer.constraintsPerTaskDistribution();
     //checkpoint();
   }
 
@@ -52,16 +55,9 @@ public class Analyzer {
     }
     LOG.info("Task Distribution #: " + tasksDistribution.size());
 
-    List<Long> distribution = new ArrayList<Long>(tasksDistribution.values());
-    Collections.sort(distribution, new Comparator<Long>() {
-      @Override
-      public int compare(Long o1, Long o2) {
-        return -1 * o1.compareTo(o2);
-      }
-    });
-    // distribution.subList(0, 100000);
-    LOG.info("" + distribution.subList(0, 10000));
+    Util.createGraphs(tasksDistribution, "TasksDistOverJob");
   }
+
 
   public static void analyzeConstraints() {
     GoogleTraceReader googleTraceReader =
@@ -163,21 +159,15 @@ public class Analyzer {
     GoogleTraceReader googleTraceReader =
       new GoogleTraceReader(NebulaConfiguration.getNebulaSite().getGoogleTraceHome());
     Iterator<String[]> constraintIterator = googleTraceReader.open(Constants.TASK_CONSTRAINTS);
-    Map<Long, Long> ids = Maps.newHashMap();
+    Map<Long, Long> constraintsPerJob = Maps.newHashMap();
 
     while (constraintIterator.hasNext()) {
       String[] event = constraintIterator.next();
-      Util.increment(ids, ConstraintEvent.getJobID(event));
+      Util.increment(constraintsPerJob, ConstraintEvent.getJobID(event));
     }
-    LOG.info("ID size: " + ids.size());
-    List<Long> distribution = new ArrayList<Long>(ids.values());
-    Collections.sort(distribution, new Comparator<Long>() {
-      @Override
-      public int compare(Long o1, Long o2) {
-        return -1 * o1.compareTo(o2);
-      }
-    });
-    LOG.info("" + distribution);
+    LOG.info("ID size: " + constraintsPerJob.size());
+    Util.createGraphs(constraintsPerJob, "Constraints-Job");
+
 
 
   }
@@ -194,6 +184,7 @@ public class Analyzer {
       Util.increment(tasks, ConstraintEvent.getJobID(event), ConstraintEvent.getIndex(event));
     }
     LOG.info("Task size: " + tasks.size());
+
     List<Long> distribution = new ArrayList<Long>(tasks.values());
     Collections.sort(distribution, new Comparator<Long>() {
       @Override
@@ -201,8 +192,10 @@ public class Analyzer {
         return -1 * o1.compareTo(o2);
       }
     });
-    // distribution.subList(0, 100000);
-     LOG.info("" + distribution.subList(0, 100000));
+    Util.createGraphs(distribution, "Constraints-Tasks");
+
+
+
   }
 
   public static void analyzeJobs() {
@@ -223,20 +216,18 @@ public class Analyzer {
       Util.increment(names, JobEvent.getName(event));
       Util.increment(logicalNames, JobEvent.getLogicalName(event));
       Util.increment(ids, JobEvent.getID(event));
-      processJobEvent(event);
+      //processJobEvent(event);
     }
 
     LOG.info("Logical name size: " + logicalNames.size());
     LOG.info("name size: " + names.size());
     LOG.info("ID size: " + ids.size());
-    List<Long> distribution = new ArrayList<Long>(logicalNames.values());
-    Collections.sort(distribution, new Comparator<Long>() {
-      @Override
-      public int compare(Long o1, Long o2) {
-        return -1 * o1.compareTo(o2);
-      }
-    });
-    LOG.info("" + distribution);
+
+    Util.createGraphs(names, "Job-Name");
+    Util.createGraphs(logicalNames, "Job-LogicalName");
+    Util.createGraphs(ids, "Events-Job");
+
+
   }
 
   public static void analyzeTasks() {

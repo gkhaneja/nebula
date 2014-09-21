@@ -3,6 +3,8 @@ package edu.illinois.cs.srg.sim.util;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Table;
+import com.panayotis.gnuplot.JavaPlot;
+import com.panayotis.gnuplot.terminal.PostscriptTerminal;
 import edu.illinois.cs.srg.sim.cluster.TaskLight;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,10 +15,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
+import java.util.*;
 
 /**
  * Created by gourav on 9/8/14.
@@ -151,4 +150,149 @@ public class Util {
   public static void checkpoint() {
     checkpoint("");
   }
+
+  /**
+   * Returns a sorted list in decreasing order.
+   * @param countMap
+   * @param <K>
+   * @return
+   */
+  public static <K> List<Long> getZipf(Map<K, Long> countMap) {
+    List<Long> sortedCount = new ArrayList<Long>(countMap.values());
+    Collections.sort(sortedCount, new Comparator<Long>() {
+      @Override
+      public int compare(Long o1, Long o2) {
+        return -1 * o1.compareTo(o2);
+      }
+    });
+    return sortedCount;
+  }
+
+  /**
+   * Expects sorted count in a decreasing order.
+   * @param sortedCount
+   * @return
+   */
+  public static long[][] getZipfPlotData(List<Long> sortedCount) {
+    long[][] plotData = new long[sortedCount.size()][];
+    for (int rank=0; rank<sortedCount.size(); rank++) {
+      plotData[rank] = new long[]{rank, sortedCount.get(rank)};
+    }
+    return plotData;
+  }
+
+  /**
+   * Expects sorted count in a decreasing order.
+   * @param sortedCount
+   * @return
+   */
+  public static double[][] getZipfLogPlotData(List<Long> sortedCount) {
+    double[][] plotData = new double[sortedCount.size()][];
+    for (int rank=0; rank<sortedCount.size(); rank++) {
+      plotData[rank] = new double[]{Math.log(rank), Math.log(sortedCount.get(rank))};
+    }
+    return plotData;
+  }
+
+  public static Map<Long, Long> getPareto(List<Long> sortedCount) {
+    Map<Long, Long> keyCountPerCount = Maps.newHashMap();
+    for (int index=0; index<sortedCount.size(); index++) {
+      Util.increment(keyCountPerCount, sortedCount.get(index));
+    }
+    return keyCountPerCount;
+  }
+
+  public static long[][] getParetoPlotData(Map<Long, Long> keyCountPerCount) {
+    long[][] plotData = new long[keyCountPerCount.size()][];
+    int index = 0;
+    for (Map.Entry<Long, Long> entry : keyCountPerCount.entrySet()) {
+      plotData[index++] = new long[]{entry.getKey(), entry.getValue()};
+    }
+    return plotData;
+  }
+
+  public static double[][] getParetoLogPlotData(Map<Long, Long> keyCountPerCount) {
+    double[][] plotData = new double[keyCountPerCount.size()][];
+    int index = 0;
+    for (Map.Entry<Long, Long> entry : keyCountPerCount.entrySet()) {
+      plotData[index++] = new double[]{Math.log(entry.getKey()), Math.log(entry.getValue())};
+    }
+    return plotData;
+  }
+
+  /**
+   * Expects sorted count in a decreasing order.
+   * @param sortedCount
+   * @return
+   */
+  public static Map<Long, Double> getPDF(List<Long> sortedCount) {
+    if (sortedCount.size() == 0) {
+      return new HashMap<Long, Double>();
+    }
+    int totalKeys = sortedCount.size();
+    Map<Long, Double> fractionCoveredByCount = Maps.newHashMap();
+    Collections.reverse(sortedCount);
+    Long currentCount = sortedCount.get(0);
+    for (int i=0; i<sortedCount.size(); i++) {
+      if(currentCount != sortedCount.get(i)) {
+        fractionCoveredByCount.put(currentCount, (i * 1.0) / totalKeys);
+        currentCount = sortedCount.get(i);
+      }
+    }
+    return fractionCoveredByCount;
+  }
+
+  public static double[][] getPDFPlotData(Map<Long, Double> fractionCoveredByCount) {
+    double[][] plotData = new double[fractionCoveredByCount.size()][];
+    int index = 0;
+    for (Map.Entry<Long, Double> entry : fractionCoveredByCount.entrySet()) {
+      plotData[index++] = new double[]{entry.getKey(), entry.getValue()};
+    }
+    return plotData;
+  }
+
+  // TODO: Add title and legends
+  public static <K> void createGraphs(Map<K, Long> counts, String name) {
+    List<Long> sortedCount = Util.getZipf(counts);
+    createGraphs(sortedCount, name);
+  }
+
+  // TODO: Add title and legends
+  public static void createGraphs(List<Long> sortedCount, String name) {
+    // List<Long> sortedCount = Util.getZipf(counts);
+    Map<Long, Long> keyCountPerCount = Util.getPareto(sortedCount);
+    name = Constants.HOME_GRAPHS + "/" + name;
+
+    // zipf
+    JavaPlot javaPlot = new JavaPlot();
+    javaPlot.setTerminal(new PostscriptTerminal(name + ".zipf.eps"));
+    javaPlot.addPlot(Util.getZipfPlotData(sortedCount));
+    javaPlot.plot();
+
+    //zipf log-log
+    javaPlot = new JavaPlot();
+    javaPlot.setTerminal(new PostscriptTerminal(name + ".zipf_log.eps"));
+    javaPlot.addPlot(Util.getZipfLogPlotData(sortedCount));
+    javaPlot.plot();
+
+    // #key per count plot
+    javaPlot = new JavaPlot();
+    javaPlot.setTerminal(new PostscriptTerminal(name + ".pareto.eps"));
+    javaPlot.addPlot(Util.getParetoPlotData(keyCountPerCount));
+    javaPlot.plot();
+
+    // #key per count log plot
+    javaPlot = new JavaPlot();
+    javaPlot.setTerminal(new PostscriptTerminal(name + ".pareto_log.eps"));
+    javaPlot.addPlot(Util.getParetoLogPlotData(keyCountPerCount));
+    javaPlot.plot();
+
+    // pdf plot
+    javaPlot = new JavaPlot();
+    javaPlot.setTerminal(new PostscriptTerminal(name + ".pdf.eps"));
+    javaPlot.addPlot(Util.getPDFPlotData(Util.getPDF(sortedCount)));
+    javaPlot.plot();
+  }
+
+
 }

@@ -133,7 +133,7 @@ public class GoogleTraceIterator implements Iterator {
       throw new NoSuchElementException("No more files. Total files read: " + this.currentFile);
     }
     try {
-      // LOG.info("Reading " + this.directory + "/" + files[this.currentFile]);
+      //LOG.info("Reading " + this.directory + "/" + files[this.currentFile]);
       reader = new BufferedReader(new FileReader(this.directory + "/" + files[this.currentFile]));
     } catch (FileNotFoundException e) {
       LOG.error("Unable to open file " + this.directory + "/" + files[this.currentFile], e);

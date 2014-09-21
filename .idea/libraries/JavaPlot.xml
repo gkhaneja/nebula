@@ -1,11 +1,14 @@
 <component name="libraryTable">
   <library name="JavaPlot">
     <CLASSES>
-      <root url="jar://$USER_HOME$/Downloads/JavaPlot-0.5.0/dist/JavaPlot.jar!/" />
+      <root url="jar://$PROJECT_DIR$/../JavaPlot-0.5.0/dist/JavaPlot.jar!/" />
     </CLASSES>
     <JAVADOC>
-      <root url="file://$USER_HOME$/Downloads/JavaPlot-0.5.0/dist/javadoc" />
+      <root url="file://$PROJECT_DIR$/../JavaPlot-0.5.0/dist/javadoc" />
     </JAVADOC>
-    <SOURCES />
+    <SOURCES>
+      <root url="file://$PROJECT_DIR$/../JavaPlot-0.5.0/src" />
+      <root url="file://$PROJECT_DIR$/../JavaPlot-0.5.0/demo/src" />
+    </SOURCES>
   </library>
 </component>

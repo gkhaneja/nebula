@@ -11,17 +11,20 @@ public class Application {
 
   private String name;
   private Map<Long, Job> jobs;
+  Cluster cluster;
 
   public Application(String name) {
     this.name = name;
     jobs = Maps.newHashMap();
+    cluster = new Cluster();
   }
 
   public void add(Job job) {
-
+    jobs.put(job.getId(), job);
   }
 
-  public void schedule(Task task) {
+  public void schedule(Job job, int index) {
+    
 
   }
 

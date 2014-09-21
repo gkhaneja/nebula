@@ -29,7 +29,7 @@ public class Task {
   private double diskSpace;
   private int differentMachines;
 
-  private List<Event> constraints;
+  private List<String[]> constraints;
 
   public Task(String[] task) {
     this(TaskEvent.getJobID(task), TaskEvent.getIndex(task));
@@ -138,9 +138,15 @@ public class Task {
 
 
   public void add(Event constraint) {
-    constraints.add(constraint);
-    if (constraints.size() > 1000) {
-      // LOG.warn("Too many constraints for task: " + jobID + ", " + index);
+    // No-op. TODO: remove this, may be ?
+    //constraints.add(constraint);
+
+  }
+
+  public void add(List<String[]> constraint) {
+    constraints.addAll(constraint);
+    if (constraints.size() > 100000) {
+       LOG.warn("Too many constraints for task: " + jobID + ", " + index);
     }
   }
 }

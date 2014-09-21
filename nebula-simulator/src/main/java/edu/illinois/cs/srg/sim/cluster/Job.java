@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -91,7 +92,7 @@ public class Job {
     }
   }
 
-  public void process(String[] taskEvent) {
+  public void process(String[] taskEvent, List<String[]> constraints) {
     int index = TaskEvent.getIndex(taskEvent); // Long.parseLong(taskEvent[3]);
     int eventType = Integer.parseInt(taskEvent[5]);
     if (eventType == JobEvent.SUBMIT && !tasks.containsKey(index)) {
@@ -106,6 +107,7 @@ public class Job {
       }
     } else {
       tasks.get(index).update(taskEvent);
+      tasks.get(index).add(constraints);
       if (tasks.get(index).getState().equals(JobState.DEAD)) {
         tasks.remove(index);
       }

@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -28,7 +29,7 @@ public class JobManager {
   }
 
 
-  public void process(String[] jobEvent) {
+  public Job process(String[] jobEvent) {
     long id = JobEvent.getID(jobEvent);
     int eventType = JobEvent.getEventType(jobEvent);
     if (eventType == JobEvent.SUBMIT && !jobs.containsKey(id)) {
@@ -44,9 +45,10 @@ public class JobManager {
     } else {
       jobs.get(id).update(jobEvent);
     }
+    return jobs.get(id);
   }
 
-  public void processTaskEvent(String[] taskEvent) {
+  public void processTaskEvent(String[] taskEvent, List<String[]> constraints) {
     long jobID = TaskEvent.getJobID(taskEvent); //Long.parseLong(taskEvent[2]);
 
     if (!jobs.containsKey(jobID)) {
@@ -60,7 +62,7 @@ public class JobManager {
 
       jobs.put(jobID, new Job(taskEvent));
     }
-    jobs.get(jobID).process(taskEvent);
+    jobs.get(jobID).process(taskEvent, constraints);
   }
 
 
@@ -90,5 +92,9 @@ public class JobManager {
     }
 
 
+  }
+
+  public Job get(long jobID) {
+    return jobs.get(jobID);
   }
 }
