@@ -32,7 +32,7 @@ public class ClusterBuilder {
     Map<String, Integer> eventStats = Maps.newHashMap();
 
     Map<Long, Node> nodes = Maps.newHashMap();
-
+    Cluster cluster = new Cluster();
 
 
     while (iterator.hasNext()) {
@@ -46,7 +46,7 @@ public class ClusterBuilder {
       double cpu = node.getCpu();
       double memory = node.getMemory();
       String platform = node.getPlatformID();
-
+      cluster.add(googleTrace);
 
       if (!nodes.containsKey(node.getId())) {
         nodes.put(node.getId(), node);
@@ -63,6 +63,6 @@ public class ClusterBuilder {
     LOG.info("CPU Stats: " + stats);
     LOG.info("Unique machines: " + nodes.size());
     LOG.info("event Stats: " + eventStats);
-    return new Cluster(nodes);
+    return cluster;
   }
 }

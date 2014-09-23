@@ -29,5 +29,25 @@ public class TaskEvent {
     return Long.parseLong(event[5]);
   }
 
+  public static double getCPU(String[] event) {
+    double cpu;
+    try {
+      cpu = Double.parseDouble(event[9]);
+    } catch (Exception e) {
+      cpu = 0;
+    }
+    return cpu;
+  }
+
+  public static double getMemory(String[] event) {
+    double memory;
+    try {
+      memory = Double.parseDouble(event[10]);
+    } catch (Exception e) {
+      memory = 0;
+    }
+    return memory;
+  }
+
 
 }

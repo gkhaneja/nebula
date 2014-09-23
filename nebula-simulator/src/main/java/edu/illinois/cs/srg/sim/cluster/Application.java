@@ -1,31 +1,15 @@
 package edu.illinois.cs.srg.sim.cluster;
 
-import com.google.common.collect.Maps;
-
-import java.util.Map;
+import java.util.List;
 
 /**
- * Created by gourav on 9/11/14.
+ * Created by gourav on 9/21/14.
  */
-public class Application {
+public interface Application {
 
-  private String name;
-  private Map<Long, Job> jobs;
-  Cluster cluster;
+  void addJob(String[] job);
 
-  public Application(String name) {
-    this.name = name;
-    jobs = Maps.newHashMap();
-    cluster = new Cluster();
-  }
+  void schedule(String[] task, List<String[]> constraints);
 
-  public void add(Job job) {
-    jobs.put(job.getId(), job);
-  }
-
-  public void schedule(Job job, int index) {
-    
-
-  }
-
+  void endTask(Event event);
 }

@@ -93,11 +93,9 @@ public class Job {
   }
 
   public void process(String[] taskEvent, List<String[]> constraints) {
-    int index = TaskEvent.getIndex(taskEvent); // Long.parseLong(taskEvent[3]);
+    int index = TaskEvent.getIndex(taskEvent);
     int eventType = Integer.parseInt(taskEvent[5]);
     if (eventType == JobEvent.SUBMIT && !tasks.containsKey(index)) {
-
-      // create a job object
       tasks.put(index, new Task(taskEvent));
     }
     if (!tasks.containsKey(index)) {
@@ -119,7 +117,6 @@ public class Job {
       LOG.error("Cannot end task for a non-existent task: " + event);
       throw new RuntimeException("Cannot end task for a non-existent task: " + event);
     }
-
     tasks.remove(EndEvent.getIndex(event.getEvent()));
   }
 
@@ -138,5 +135,9 @@ public class Job {
       // Measurements.constraintsAfterTask++;
     }
       tasks.get(ConstraintEvent.getIndex(constraint.getEvent())).add(constraint);
+  }
+
+  public Task getTask(int index) {
+    return tasks.get(index);
   }
 }

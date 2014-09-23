@@ -4,6 +4,12 @@ package edu.illinois.cs.srg.sim.cluster;
  * Created by gourav on 9/12/14.
  */
 public class ConstraintEvent {
+
+  public static final int EQUAL = 0;
+  public static final int NOT_EQUAL = 1;
+  public static final int LESS_THAN = 2;
+  public static final int GREATER_THAN = 3;
+
   public static long getTime(String[] event) {
     return Long.parseLong(event[0]);
   }

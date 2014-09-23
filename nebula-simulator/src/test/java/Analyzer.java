@@ -292,7 +292,7 @@ public class Analyzer {
     if (taskEvent == null) {
       return;
     }
-    jobManager.processTaskEvent(taskEvent);
+    jobManager.processTaskEvent(taskEvent, new ArrayList<String[]>());
   }
 
   public static void analyzeMachines() {

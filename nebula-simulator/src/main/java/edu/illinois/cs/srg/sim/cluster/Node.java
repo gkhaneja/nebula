@@ -21,6 +21,8 @@ public class Node {
   private Map<String, String> attributes;
   private boolean isDeleted;
 
+  private Usage usage;
+
   public Node(String[] googleTrace) {
     if (googleTrace.length < 3) {
       throw new RuntimeException("Unknown Google Trace Format: " + Arrays.toString(googleTrace));
@@ -32,6 +34,7 @@ public class Node {
     this.isDeleted = false;
     update(googleTrace);
     attributes = Maps.newHashMap();
+    usage = new Usage();
   }
 
   public long getId() {
@@ -64,6 +67,10 @@ public class Node {
     }
   }
 
+  public String getAttribute(String name) {
+    return attributes.get(name);
+  }
+
   public void markDeleted(String[] googleTrace) {
     this.isDeleted = true;
     update(googleTrace);
@@ -87,6 +94,92 @@ public class Node {
     }
     if (googleTrace.length > 5 && !googleTrace[5].equals("")) {
       this.memory = Double.parseDouble(googleTrace[5]);
+    }
+  }
+
+  public Usage getUsage() {
+    return usage;
+  }
+
+  public class Usage {
+    // Currently, only store the total cpu and memory being used.
+    // TODO: Store per app / job memory , cpu usage.
+    // TODO: Reserve some resources for scheduler and OS.
+
+    private double memoryUsed;
+    private double cpuUsed;
+
+    public Usage() {
+      memoryUsed = 0;
+      cpuUsed = 0;
+    }
+
+    /**
+     * Returns false if operation cannot be performed.
+     * Returns true, otherwise.
+     * @param memory
+     * @param cpu
+     * @return
+     */
+    public boolean add(double memory, double cpu) {
+      if (memory < 0 || cpu < 0) {
+        throw new RuntimeException("Memory and CPU should be non-negative: " + memory + ", " + cpu);
+      }
+      if (memory + memoryUsed <= Node.this.memory && cpu + cpuUsed <= Node.this.cpu) {
+        memoryUsed += memory;
+        cpuUsed += cpu;
+        return true;
+      }
+      return false;
+    }
+
+    public boolean check(double memory, double cpu) {
+      if (memory < 0 || cpu < 0) {
+        throw new RuntimeException("Memory and CPU should be non-negative: " + memory + ", " + cpu);
+      }
+      if (memory + memoryUsed <= Node.this.memory && cpu + cpuUsed <= Node.this.cpu) {
+        return true;
+      }
+      return false;
+    }
+
+    public void release(double memory, double cpu) {
+      if (memory < 0 || cpu < 0) {
+        throw new RuntimeException("Memory and CPU should be non-negative: " + memory + ", " + cpu);
+      }
+      memoryUsed = memoryUsed - memory;
+      cpuUsed = cpuUsed - cpu;
+    }
+
+    public void release(Resource resource) {
+      release(resource.getMemory(), resource.getCpu());
+    }
+
+    public double getMemory() {
+      return memoryUsed;
+    }
+
+    public double getCpu() {
+      return cpuUsed;
+    }
+
+  }
+
+  public static class Resource {
+    private double memory;
+    private double cpu;
+
+    public Resource(double memory, double cpu) {
+      this.memory = memory;
+      this.cpu = cpu;
+    }
+
+    public double getMemory() {
+      return memory;
+    }
+
+    public double getCpu() {
+      return cpu;
     }
   }
 }

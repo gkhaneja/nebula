@@ -16,132 +16,52 @@ import java.util.*;
 /**
  * Created by gourav on 9/9/14.
  */
-public class Simulator {
+public class OmegaSimulator {
   private static final Logger LOG = LoggerFactory.getLogger(Simulator.class);
 
   private static Cluster cluster;
-  private static JobManager jobManager;
+  private static OmegaScheduler scheduler;
+  private static Map<String, OmegaApplication> applications;
+
+  // Helping temporary variable.
   private static Map<Integer, String[]> lastConstraintEvents;
-  private static Map<String, DefaultApplication> applications;
-
-  // We no more need seenTasks because we have collected submit tasks already :)
-  private static Map<Long, Set<Integer>> seenTasks;
-
-  public static Queue<Event> taskEndEvents;
+  private static Queue<Event> taskEndEvents;
+  private static Map<Long, String> jobs;
 
   public static void main(String[] args) {
     // Constants.DISABLE_RUNTIME_EXCEPTION = true;
 
     NebulaConfiguration.init(Simulator.class.getResourceAsStream(Constants.NEBULA_SITE));
     cluster = new Cluster();
-    jobManager = new JobManager();
-    lastConstraintEvents = Maps.newHashMap();
-    seenTasks = Maps.newHashMap();
+    scheduler = new OmegaScheduler(cluster);
     applications = Maps.newHashMap();
 
+    lastConstraintEvents = Maps.newHashMap();
     taskEndEvents = Queues.newPriorityQueue();
-    long startTime = System.currentTimeMillis();
-    //Simulator.analyzeMachines();
-    Simulator.simulate();
-    LOG.info("Time Taken: {} seconds", (System.currentTimeMillis() - startTime) / 1000);
-  }
+    jobs = Maps.newHashMap();
 
-  //TODO: Known Bug: Adds a new line during the start of the file.
-  public static void extractSUBMITEvents() {
-    TimeTracker timeTracker = new TimeTracker("HOT");
-    GoogleTraceReader googleTraceReader =
-      new GoogleTraceReader(NebulaConfiguration.getNebulaSite().getGoogleTraceHome());
-    GoogleTraceIterator taskIterator = (GoogleTraceIterator) googleTraceReader.open(Constants.TASK_EVENTS);
-
-    StringBuilder content = new StringBuilder();
-
-
-    String currentFile = taskIterator.getFile();
-    BufferedWriter writer = null;
-
-    try {
-      writer = openFile(currentFile);
-      while (taskIterator.hasNext()) {
-        // Reset file.
-        if (currentFile!=taskIterator.getFile()) {
-          writer.write(content.toString());
-          content.delete(0, content.length()-1);
-          currentFile = taskIterator.getFile();
-          writer.close();
-          writer = openFile(currentFile);
-        }
-        if (content.length() > 100000000) {
-          writer.write(content.toString());
-          content.delete(0, content.length()-1);
-        }
-        String[] event = taskIterator.next();
-        long jobID = TaskEvent.getJobID(event);
-        int index = TaskEvent.getIndex(event);
-
-        if (seenTasks.containsKey(jobID)) {
-          if (!seenTasks.get(jobID).contains(index)) {
-            seenTasks.get(jobID).add(index);
-            content.append(getLine(event));
-          }
-        } else {
-          Set<Integer> indices = Sets.newHashSet();
-          indices.add(index);
-          seenTasks.put(jobID, indices);
-          content.append(getLine(event));
-        }
-      }
-      writer.write(content.toString());
-      content.delete(0, content.length() - 1);
-      writer.close();
-    } catch (IOException e) {
-      LOG.error("Cannot write to file: " + currentFile, e);
-      return;
-    }
-  }
-
-  private static BufferedWriter openFile(String currentFile) throws IOException {
-    String dir = "/Users/gourav/projects/nebula/task_events/";
-    File file = new File(dir + currentFile);
-    if (!file.exists()) {
-      file.createNewFile();
-    }
-
-    return new BufferedWriter(new FileWriter(file));
-
+    TimeTracker timeTracker = new TimeTracker("OmegaSimulator");
+    OmegaSimulator.simulate();
+    timeTracker.checkpoint("Finished Simulation");
   }
 
 
-  private static String getLine(String[] entry) {
-    StringBuilder line = new StringBuilder(50);
-    for (int i = 0; i < TaskEvent.SIZE; i++) {
-      if (i < entry.length) {
-        line.append(entry[i]);
-      }
-      if (i < TaskEvent.SIZE - 1) {
-        line.append(",");
-      }
-    }
-    line.append("\n");
-    return line.toString();
-  }
+
+
 
 
 
   public static void simulate() {
 
-    //TODO: Initializations : give cluster copies to apps, perhaps.
-    //init();
-
     GoogleTraceReader googleTraceReader =
       new GoogleTraceReader(NebulaConfiguration.getNebulaSite().getGoogleTraceHome());
     Iterator<String[]> jobIterator = googleTraceReader.open(Constants.JOB_EVENTS);
     Iterator<String[]> taskIterator = googleTraceReader.open(Constants.SUBMIT_TASK_EVENTS);
-    // Iterator<String[]> constraintIterator = googleTraceReader.open(Util.LOG_HOME, "", "part-00000-of-00500.csv");
-
     Iterator<String[]> attributeIterator = googleTraceReader.open(Constants.MACHINE_ATTRIBUTES);
     Iterator<String[]> machineIterator = googleTraceReader.open(Constants.MACHINE_EVENTS);
 
     List<Iterator<String[]>> constraintIterators = Lists.newArrayList();
+    //TODO: Only got 313 constraints sorted :)  Sort rest of them.
     for (int i=0; i<=313; i++) {
       String pattern = "part-" + String.format("%05d", i) + "-of-00500.csv";
       constraintIterators.add(googleTraceReader.open(Constants.SORTED_TASK_CONSTRAINTS, pattern));
@@ -216,6 +136,7 @@ public class Simulator {
       }
       end = taskEndEvents.peek();
     }
+
     // Validation: all constraints are accounted for.
     for (int i=0; i<constraintIterators.size(); i++) {
       if (constraintIterators.get(i).hasNext()) {
@@ -225,36 +146,22 @@ public class Simulator {
     Measurements.print();
   }
 
-
-
-
-  // Not used.
-  private static void processTaskConstraint(Event constraint) {
-    if (constraint == null) {
-      return;
-    }
-    jobManager.addConstraint(constraint);
-  }
-
-
   private static void processJobEvent(Event event) {
     if (event == null) {
       return;
     }
     // Only processing SUBMIT events from traces. Other events should come from scheduler.
-    if (JobEvent.getEventType(event) == JobEvent.SUBMIT && !jobManager.containsJob(JobEvent.getID(event))) {
+    if (JobEvent.getEventType(event) == JobEvent.SUBMIT && !jobs.containsKey(JobEvent.getID(event))) {
       Measurements.jobsSubmitted++;
-      Job job = jobManager.process(event.getEvent());
-
-      // submit job to the app.
-      String appName = JobEvent.getLogicalName(event);
-      if (appName.equals("")) {
-        appName = Constants.DEFAULT_JOB_NAME;
+      jobs.put(JobEvent.getID(event), JobEvent.getLogicalName(event));
+      String app = JobEvent.getLogicalName(event);
+      if (app.equals("")) {
+        app = Constants.DEFAULT_JOB_NAME;
       }
-      if (!applications.containsKey(appName)) {
-        applications.put(appName, new DefaultApplication(appName));
+      if (!applications.containsKey(app)) {
+        applications.put(app, new OmegaApplication(app, scheduler));
       }
-      applications.get(appName).add(job);
+      applications.get(app).addJob(event.getEvent());
     }
   }
 
@@ -264,23 +171,11 @@ public class Simulator {
     }
     long jobID = TaskEvent.getJobID(event.getEvent());
     int index = TaskEvent.getIndex(event.getEvent());
-    TaskLight taskLight = new TaskLight(jobID, index);
-
-    // Reading only submit task events.
-    //if (TaskEvent.getEventType(event.getEvent()) == JobEvent.SUBMIT &&
-    //!jobManager.containsTask(TaskEvent.getJobID(event.getEvent()), TaskEvent.getIndex(event.getEvent()))) {
-    // !(seenTasks.containsKey(jobID) && seenTasks.get(jobID).contains(index) )) {
-    // seenTasks.add(jobID + "-" + index);
-    //} else {
-    //LOG.error("Got a task, which was submitted earlier.");
-    //}
 
     Measurements.tasksSubmitted++;
 
     // 1. Get all constraints associated with the task.
-    // TODO: Add it man, currently only iterating through them, right ?
     // TODO: What about 19m constraints thing ?
-
     long countOfConstraints=0;
     List<String[]> currentConstraints = Lists.newArrayList();
     for (int i=0; i<constraintIterators.size(); i++) {
@@ -313,20 +208,11 @@ public class Simulator {
     }
 
     // process constraints for current task.
-    // 2. Add task
-    jobManager.processTaskEvent(event.getEvent(), currentConstraints);
+    // 2. App should schedule task
+    String app = jobs.get(jobID);
+    applications.get(app).schedule(event.getEvent(), currentConstraints);
 
-    // 3. Ask the application to schedule the task.
-    //TODO: Should there be some delay associated here, depending on the application's busyness.
-    // Right now, I'm making the scheduling instantaneous.
-    Job job = jobManager.get(jobID);
-    if (!applications.containsKey(job.getLogicalName())) {
-      LOG.error("Cannot add task for non-existent application: " + event);
-      throw new RuntimeException("Cannot add task for non-existent application: " + event);
-    }
-    applications.get(job.getLogicalName()).schedule(job, index);
-
-    // 4. Add 'end' event
+    // 3. Add 'end' event
     // timestamp, jobID, index, startTime
     String[] endEvent = new String[]{
       TaskEvent.getTimestamp(event.getEvent()) + Util.getTaskDuration() + "",
@@ -334,7 +220,6 @@ public class Simulator {
       TaskEvent.getIndex(event.getEvent()) + "",
       TaskEvent.getTimestamp(event.getEvent()) + ""
     };
-
     taskEndEvents.add(new Event(endEvent));
   }
 
@@ -342,68 +227,17 @@ public class Simulator {
     if (event == null) {
       return;
     }
-    /*long jobID = EndEvent.getJobID(event.getEvent());
-    int index = EndEvent.getIndex(event.getEvent());
-    if (seenTasks.containsKey(jobID)) {
-      seenTasks.get(jobID).add(index);
-    } else {
-      Set<Integer> indices = Sets.newHashSet();
-      indices.add(index);
-      seenTasks.put(jobID, indices);
-    }*/
+    long jobID = EndEvent.getJobID(event.getEvent());
+    String app = jobs.get(jobID);
 
-    jobManager.processEndTaskEvent(event);
-  }
-
-  public static void analyzeMachines() {
-    GoogleTraceReader googleTraceReader =
-      new GoogleTraceReader(NebulaConfiguration.getNebulaSite().getGoogleTraceHome());
-    Iterator<String[]> attributeIterator = googleTraceReader.open(Constants.MACHINE_ATTRIBUTES);
-    Iterator<String[]> eventIterator = googleTraceReader.open(Constants.MACHINE_EVENTS);
-
-    String[] event = null;
-    String[] attribute = null;
-    if (eventIterator.hasNext()) {
-      event = eventIterator.next();
-    }
-    if (attributeIterator.hasNext()) {
-      attribute = attributeIterator.next();
-    }
-    while (event!=null || attribute!=null) {
-
-      long eventTime = Long.MAX_VALUE;
-      if (event != null) {
-        eventTime = Long.parseLong(event[0]);
-      }
-      long attributeTime = Long.MAX_VALUE;
-      if (attribute != null) {
-        attributeTime = Long.parseLong(attribute[0]);
-      }
-      if (eventTime <= attributeTime) {
-        processMachineEvent(event);
-        event = null;
-        if (eventIterator.hasNext()) {
-          event = eventIterator.next();
-        }
-      } else {
-        processMachineAttribute(attribute);
-        attribute = null;
-        if (attributeIterator.hasNext()) {
-          attribute = attributeIterator.next();
-        }
-      }
-    }
+    // TODO: shouldn't go through the app, perhaps.
+    applications.get(app).endTask(event);
   }
 
   private static void processMachineAttribute(String[] attribute) {
-    //LOG.info(Arrays.toString(attribute));
     if (attribute == null) {
       return;
     }
-
-    // TODO: [MAJOR] Attribute updates are irrespective of node updates, removal, addition.
-    // Solution: Do not remove nodes on REMOVE events but mark them as delete=1. They still may need attribute updates.
-    // Ignoring them for now.
     boolean isDeleted = Integer.parseInt(attribute[4]) == 0 ? false : true;
     if (!isDeleted) {
       cluster.addAttribute(attribute);
@@ -431,7 +265,6 @@ public class Simulator {
         LOG.warn("Unknown Machine Event: {} in {}", eventType, event);
     }
   }
-
 
   /**
    * Returns true if there's at least one not null event.
@@ -463,7 +296,4 @@ public class Simulator {
     }
     return next;
   }
-
-
-
 }

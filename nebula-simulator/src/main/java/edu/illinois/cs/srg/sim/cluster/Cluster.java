@@ -6,6 +6,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 
 
@@ -29,9 +31,7 @@ public class Cluster {
     nodes = Maps.newHashMap();
   }
 
-  // TODO: Highly Deprecated. Gonna remove it.
-  @Deprecated
-  public Cluster(Map<Long, Node> nodes) {
+  private Cluster(Map<Long, Node> nodes) {
     this.nodes = nodes;
   }
 
@@ -67,6 +67,7 @@ public class Cluster {
     }
   }
 
+  @Deprecated
   public Node get(long id) {
     return nodes.get(id);
   }
@@ -79,6 +80,7 @@ public class Cluster {
     return nodes.get(id);
   }
 
+  @Deprecated
   public boolean contains(long id) {
     return nodes.containsKey(id);
   }
@@ -108,4 +110,17 @@ public class Cluster {
     }
     nodes.get(id).removeAttribute(attribute[2]);
   }
+
+  public Cluster copyOf() {
+     return new Cluster(new HashMap<Long, Node>(nodes));
+  }
+
+  public void release(long nodeID, Node.Resource resource) {
+    nodes.get(nodeID).getUsage().release(resource);
+  }
+
+  public Iterator<Node> getIterator() {
+    return nodes.values().iterator();
+  }
+
 }
