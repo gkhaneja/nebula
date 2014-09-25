@@ -24,30 +24,30 @@ public class Task {
   private String user;
   private int schedulingClass;
   private int priority;
-  private double cpu;
-  private double memory;
-  private double diskSpace;
-  private int differentMachines;
+    private double cpu;
+    private double memory;
+    private double diskSpace;
+    private int differentMachines;
 
-  private List<String[]> constraints;
+    private List<String[]> constraints;
 
-  public Task(String[] task) {
-    this(TaskEvent.getJobID(task), TaskEvent.getIndex(task));
-  }
+    public Task(String[] task) {
+      this(TaskEvent.getJobID(task), TaskEvent.getIndex(task));
+    }
 
-  public Task(long jobID, long index) {
-    this.jobID = jobID;
-    this.index = index;
-    this.state = JobState.UNSUBMITTED;
+    public Task(long jobID, long index) {
+      this.jobID = jobID;
+      this.index = index;
+      this.state = JobState.UNSUBMITTED;
 
-    this.missingInfo = -1;
-    this.machineID = -1;
-    this.user = "default";
+      this.missingInfo = -1;
+      this.machineID = -1;
+      this.user = "default";
     this.schedulingClass = -1;
     this.priority = -1;
-    this.cpu = -1;
-    this.memory = -1;
-    this.diskSpace = -1;
+    this.cpu = 0;
+    this.memory = 0;
+    this.diskSpace = 0;
     this.differentMachines = 0;
 
     this.constraints = Lists.newArrayList();
@@ -146,7 +146,7 @@ public class Task {
   public void add(List<String[]> constraint) {
     constraints.addAll(constraint);
     if (constraints.size() > 100000) {
-       LOG.warn("Too many constraints for task: " + jobID + ", " + index);
+       LOG.warn("Too many constraints for task: " + jobID + ", " + index + ": " + constraints.size());
     }
   }
 }

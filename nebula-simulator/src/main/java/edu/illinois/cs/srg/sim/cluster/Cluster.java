@@ -115,12 +115,25 @@ public class Cluster {
      return new Cluster(new HashMap<Long, Node>(nodes));
   }
 
-  public void release(long nodeID, Node.Resource resource) {
-    nodes.get(nodeID).getUsage().release(resource);
+  public void release(long nodeID, double memory, double cpu) {
+    nodes.get(nodeID).getUsage().release(memory, cpu);
   }
 
   public Iterator<Node> getIterator() {
     return nodes.values().iterator();
   }
 
+  /**
+   * Counts the deleted nodes too.
+   * @return
+   */
+  @Deprecated
+  public long getSize() {
+    return nodes.size();
+  }
+
+  public long getSafeSize() {
+    //TODO:
+    return 0;
+  }
 }

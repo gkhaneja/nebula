@@ -5,14 +5,12 @@ import com.google.common.collect.Multimap;
 import com.google.common.collect.Table;
 import com.panayotis.gnuplot.JavaPlot;
 import com.panayotis.gnuplot.terminal.PostscriptTerminal;
+import com.sun.xml.internal.messaging.saaj.util.ByteOutputStream;
 import edu.illinois.cs.srg.sim.cluster.TaskLight;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
+import java.io.*;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.util.*;
@@ -46,8 +44,8 @@ public class Util {
    * @return
    */
   public static long getTaskDuration() {
-    long duration = 1000000;
-    int type = random.nextInt(3);
+    long duration = 10;
+    /*int type = random.nextInt(3);
     switch (type) {
       case 0:
         // 1 hour.
@@ -292,6 +290,29 @@ public class Util {
     javaPlot.setTerminal(new PostscriptTerminal(name + ".pdf.eps"));
     javaPlot.addPlot(Util.getPDFPlotData(Util.getPDF(sortedCount)));
     javaPlot.plot();
+  }
+
+
+  /**
+   * Returns size in MBs.
+   * @param object
+   * @return
+   */
+  public static int getSize(Object object) {
+    try {
+      TimeTracker timeTracker = new TimeTracker("GetSize");
+      ByteArrayOutputStream byteOutputStream = new ByteArrayOutputStream();
+      ObjectOutputStream stream = new ObjectOutputStream(byteOutputStream);
+      stream.writeObject(object);
+      int size = byteOutputStream.size();
+      timeTracker.checkpoint("Before Reset");
+      byteOutputStream.reset();
+      timeTracker.checkpoint("After Reset");
+      return size;
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
+    return -1;
   }
 
 

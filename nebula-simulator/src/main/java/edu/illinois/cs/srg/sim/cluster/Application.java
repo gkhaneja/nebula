@@ -7,9 +7,9 @@ import java.util.List;
  */
 public interface Application {
 
-  void addJob(String[] job);
+  //void addJob(String[] job);
 
-  void schedule(String[] task, List<String[]> constraints);
+  boolean schedule(String[] task, List<String[]> constraints);
 
-  void endTask(Event event);
+  //void end(Event task);
 }

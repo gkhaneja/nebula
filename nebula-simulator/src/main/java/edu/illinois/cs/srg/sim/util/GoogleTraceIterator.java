@@ -46,7 +46,7 @@ public class GoogleTraceIterator implements Iterator {
     Arrays.sort(files);
     this.currentFile = -1;
     this.lastLine = null;
-    if (directory.contains(Constants.TASK_EVENTS)) {
+    if (directory.contains(Constants.SUBMIT_TASK_EVENTS)) {
       timeTracker = new TimeTracker("Task Event Reader: ");
     }
     nextFile();
@@ -133,7 +133,9 @@ public class GoogleTraceIterator implements Iterator {
       throw new NoSuchElementException("No more files. Total files read: " + this.currentFile);
     }
     try {
-      LOG.info("Reading " + this.directory + "/" + files[this.currentFile]);
+      if (!directory.contains("constraint")) {
+        // LOG.info("Reading " + this.directory + "/" + files[this.currentFile]);
+      }
       reader = new BufferedReader(new FileReader(this.directory + "/" + files[this.currentFile]));
     } catch (FileNotFoundException e) {
       LOG.error("Unable to open file " + this.directory + "/" + files[this.currentFile], e);

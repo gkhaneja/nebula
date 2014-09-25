@@ -31,6 +31,12 @@ public class ConstraintEvent {
   }
 
   public static String getValue(String[] event) {
-    return (event[5]);
+    String value;
+    try {
+      value = event[5];
+    } catch (Exception e) {
+      value = null;
+    }
+    return value;
   }
 }
