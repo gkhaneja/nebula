@@ -1,8 +1,10 @@
 package edu.illinois.cs.srg.sim.cluster;
 
+import com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Iterator;
 import java.util.Map;
 
 /**
@@ -21,17 +23,29 @@ public class OmegaScheduler {
   // more than one app.
   // TODO: Resolving conflicts based on priority. Preemption.
 
-  // TODO: create a type CellState ?
-  private Cluster cellState;
+  private Map<Long, Usage> cellState;
+
   /**
    * Initialize scheduler by providing the cluster.
    * cluster is not a copy but a reference to the Scheduler.
    * Scheduler will only modify the resource usage and not the resource type and quantity.
    *
-   * @param cellState
    */
-  public OmegaScheduler(Cluster cellState) {
-    this.cellState = cellState;
+  public OmegaScheduler() {
+    cellState = Maps.newHashMap();
+    initializeUsage();
+
+  }
+
+  private void initializeUsage() {
+    Iterator<Node> iterator = OmegaSimulator.cluster.getIterator();
+    while (iterator.hasNext()) {
+      cellState.put(iterator.next().getId(), new Usage());
+    }
+  }
+
+  public void add(long id) {
+    cellState.put(id, new Usage());
   }
 
   public TransactionResponse commit(Map<Long, Node.Resource> proposals) {
@@ -46,13 +60,15 @@ public class OmegaScheduler {
       return new TransactionResponse(getCellStateReference(), TransactionResult.INVALID);
     }
 
+    //TODO: Expectation of only one proposal to avoid making another copy.
     //Cluster copy = cellState.copyOf();
     for (Map.Entry<Long, Node.Resource> proposal : proposals.entrySet()) {
       long id = proposal.getKey();
       Node.Resource resource = proposal.getValue();
-      if (cellState.safeContains(id)) {
-        if (cellState.safeGet(id).getUsage().check(resource.getMemory(), resource.getCpu())) {
-          cellState.safeGet(id).getUsage().add(resource.getMemory(), resource.getCpu());
+      if (OmegaSimulator.cluster.safeContains(id)) {
+        if (UsageUtil.check(cellState.get(id), resource.getMemory(), resource.getCpu(),
+          OmegaSimulator.cluster.safeGet(id).getMemory(), OmegaSimulator.cluster.safeGet(id).getCpu()  )) {
+          UsageUtil.add(cellState.get(id), resource.getMemory(), resource.getCpu());
         } else {
           //TODO: Ref
           return new TransactionResponse(getCellStateReference(), TransactionResult.RESOURCE_OVERFLOW);
@@ -66,15 +82,15 @@ public class OmegaScheduler {
   }
 
   public class TransactionResponse {
-    private Cluster cellState;
+    private Map<Long, Usage> cellState;
     private TransactionResult result;
 
-    public TransactionResponse(Cluster cellState, TransactionResult result) {
+    public TransactionResponse(Map<Long, Usage> cellState, TransactionResult result) {
       this.cellState = cellState;
       this.result = result;
     }
 
-    public Cluster getCellState() {
+    public Map<Long, Usage> getCellState() {
       return cellState;
     }
 
@@ -83,13 +99,18 @@ public class OmegaScheduler {
     }
   }
 
-  public Cluster getCellState() {
+  /*public Cluster getCellState() {
     return cellState.copyOf();
-  }
+  }*/
 
   @Deprecated
-  public Cluster getCellStateReference() {
+  public Map<Long, Usage> getCellStateReference() {
     return cellState;
+  }
+
+  public void release(long machineID, double memory, double cpu) {
+    cellState.get(machineID).memory -= memory;
+    cellState.get(machineID).cpu -= cpu;
   }
 
 }

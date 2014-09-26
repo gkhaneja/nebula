@@ -35,7 +35,7 @@ public class Cluster {
     this.nodes = nodes;
   }
 
-  public void add(String[] node) {
+  public long add(String[] node) {
     long id = Long.parseLong(node[1]);
     if (nodes.containsKey(id) && !nodes.get(id).isDeleted()) {
       LOG.error("Cannot add node while it already exists: {}" + Arrays.toString(node));
@@ -45,6 +45,7 @@ public class Cluster {
     } else {
       nodes.put(id, new Node(node));
     }
+    return id;
   }
 
   public void remove(String node[]) {
@@ -113,10 +114,6 @@ public class Cluster {
 
   public Cluster copyOf() {
      return new Cluster(new HashMap<Long, Node>(nodes));
-  }
-
-  public void release(long nodeID, double memory, double cpu) {
-    nodes.get(nodeID).getUsage().release(memory, cpu);
   }
 
   public Iterator<Node> getIterator() {

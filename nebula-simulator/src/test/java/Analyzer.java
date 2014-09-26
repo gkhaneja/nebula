@@ -39,7 +39,7 @@ public class Analyzer {
 
     Util.checkpoint();
     //Analyzer.analyzeMachines();
-    Analyzer.constraintsPerTaskDistribution();
+    Analyzer.jobsApps();
     //checkpoint();
   }
 
@@ -56,6 +56,38 @@ public class Analyzer {
     LOG.info("Task Distribution #: " + tasksDistribution.size());
 
     Util.createGraphs(tasksDistribution, "TasksDistOverJob");
+  }
+
+  public static void jobsApps() {
+    GoogleTraceReader googleTraceReader =
+      new GoogleTraceReader(NebulaConfiguration.getNebulaSite().getGoogleTraceHome());
+    Iterator<String[]> jobIterator = googleTraceReader.open(Constants.JOB_EVENTS);
+    Map<Long, String> jobs = Maps.newHashMap();
+    Map<String, Long> jobsDistribution = Maps.newHashMap();
+
+    while (jobIterator.hasNext()) {
+      String event[] = jobIterator.next();
+      if (JobEvent.getEventType(event) == JobEvent.SUBMIT && !jobs.containsKey(JobEvent.getID(event))) {
+        Util.increment(jobsDistribution, JobEvent.getLogicalName(event));
+        jobs.put(JobEvent.getID(event), JobEvent.getLogicalName(event));
+      }
+    }
+    long totalJobs = jobs.size();
+    List<Long> dist = Util.getZipf(jobsDistribution);
+    LOG.info("Job Distribution #: " + dist);
+    List<Double> fractions = Lists.newArrayList();
+    long sum = 0;
+    long significant = -1;
+    for (int i=0; i<dist.size(); i++) {
+      sum += dist.get(i);
+      fractions.add(sum * 1.0 / totalJobs);
+      if (sum * 1.0 / totalJobs > 0.7 && significant < 0) {
+        significant = i;
+      }
+    }
+    LOG.info("Fractions         : " + fractions);
+    LOG.info("Significant: " + significant);
+    //Util.createGraphs(jobsDistribution, "JobDistOverApp");
   }
 
 

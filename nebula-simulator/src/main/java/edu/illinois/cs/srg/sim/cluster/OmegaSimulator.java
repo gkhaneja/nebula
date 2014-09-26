@@ -1,17 +1,12 @@
+package edu.illinois.cs.srg.sim.cluster;
+
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Queues;
-import com.google.common.collect.Sets;
-import edu.illinois.cs.srg.nebula.NebulaAgent;
-import edu.illinois.cs.srg.sim.cluster.*;
 import edu.illinois.cs.srg.sim.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
 import java.util.*;
 
 /**
@@ -20,46 +15,48 @@ import java.util.*;
 public class OmegaSimulator {
   private static final Logger LOG = LoggerFactory.getLogger(OmegaSimulator.class);
 
-  private static Cluster cluster;
+  public static Cluster cluster;
   private static OmegaScheduler scheduler;
   private static Map<String, OmegaApplication> applications;
 
-  // Helping temporary variable.
+  // Helping variable.
   private static Map<Integer, String[]> lastConstraintEvents;
   private static Queue<Event> taskEndEvents;
   private static Map<Long, String> jobs;
 
-  private static TimeTracker timeTracker = new TimeTracker("OmegaSimulator: ");
+  private static TimeTracker timeTracker = new TimeTracker("edu.illinois.cs.srg.sim.cluster.OmegaSimulator: ");
 
   public static void main(String[] args) {
     // Constants.DISABLE_RUNTIME_EXCEPTION = true;
 
-    NebulaConfiguration.init(Simulator.class.getResourceAsStream(Constants.NEBULA_SITE));
+    //NebulaConfiguration.init(OmegaSimulator.class.getResourceAsStream(Constants.NEBULA_SITE));
     cluster = new Cluster();
-    scheduler = new OmegaScheduler(cluster);
+    scheduler = new OmegaScheduler();
     applications = Maps.newHashMap();
 
     lastConstraintEvents = Maps.newHashMap();
     taskEndEvents = Queues.newPriorityQueue();
     jobs = Maps.newHashMap();
 
-    TimeTracker timeTracker2 = new TimeTracker("OmegaSimulator");
+    TimeTracker timeTracker2 = new TimeTracker("edu.illinois.cs.srg.sim.cluster.OmegaSimulator: ");
     try {
       OmegaSimulator.simulate();
     } catch (Exception e) {
-      timeTracker2.checkpoint("Finished failed");
+      timeTracker2.checkpoint("Simulation failed.");
       //TODO: save the state
       throw new RuntimeException(e);
     }
-    timeTracker2.checkpoint("Finished Simulation");
+    timeTracker2.checkpoint("Finished Simulation.");
   }
 
   public static void simulate() {
 
     GoogleTraceReader googleTraceReader =
-      new GoogleTraceReader(NebulaConfiguration.getNebulaSite().getGoogleTraceHome());
+      new GoogleTraceReader("/Users/gourav/projects/googleTraceData/clusterdata-2011-1");
+    //TODO:
+      //new GoogleTraceReader(NebulaConfiguration.getNebulaSite().getGoogleTraceHome());
     Iterator<String[]> jobIterator = googleTraceReader.open(Constants.JOB_EVENTS);
-    Iterator<String[]> taskIterator = googleTraceReader.open(Constants.SUBMIT_TASK_EVENTS, "part-000[0-9][0-9]-of-[0-9]*.csv");
+    Iterator<String[]> taskIterator = googleTraceReader.open(Constants.SUBMIT_TASK_EVENTS, "part-00001-of-[0-9]*.csv");
     Iterator<String[]> attributeIterator = googleTraceReader.open(Constants.MACHINE_ATTRIBUTES);
     Iterator<String[]> machineIterator = googleTraceReader.open(Constants.MACHINE_EVENTS);
 
@@ -262,7 +259,7 @@ public class OmegaSimulator {
     String app = jobs.get(jobID);
     TaskDiet task = applications.get(app).getTask(jobID, index);
     if (task != null) {
-      cluster.release(task.getMachineID(), task.getMemory(), task.getCpu());
+      scheduler.release(task.getMachineID(), task.getMemory(), task.getCpu());
     } else {
       LOG.error("Cannot end a non-running task: " + event + " app:" + app);
       throw new RuntimeException("Cannot end a non-running task: " + event);
@@ -291,7 +288,8 @@ public class OmegaSimulator {
     int eventType = Integer.parseInt(event[2]);
     switch (eventType) {
       case MachineEvent.ADD:
-        cluster.add(event);
+        long id = cluster.add(event);
+        scheduler.add(id);
         break;
       case MachineEvent.REMOVE:
         cluster.remove(event);

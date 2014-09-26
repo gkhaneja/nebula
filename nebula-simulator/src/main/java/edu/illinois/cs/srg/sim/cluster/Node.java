@@ -21,8 +21,6 @@ public class Node {
   private Map<String, String> attributes;
   private boolean isDeleted;
 
-  private Usage usage;
-
   public Node(String[] googleTrace) {
     if (googleTrace.length < 3) {
       throw new RuntimeException("Unknown Google Trace Format: " + Arrays.toString(googleTrace));
@@ -34,7 +32,6 @@ public class Node {
     this.isDeleted = false;
     update(googleTrace);
     attributes = Maps.newHashMap();
-    usage = new Usage();
   }
 
   public long getId() {
@@ -95,10 +92,6 @@ public class Node {
     if (googleTrace.length > 5 && !googleTrace[5].equals("")) {
       this.memory = Double.parseDouble(googleTrace[5]);
     }
-  }
-
-  public Usage getUsage() {
-    return usage;
   }
 
   public class Usage {

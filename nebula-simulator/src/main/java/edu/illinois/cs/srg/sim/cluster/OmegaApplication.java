@@ -18,7 +18,7 @@ public class OmegaApplication implements Application {
   private static final Logger LOG = LoggerFactory.getLogger(OmegaApplication.class);
   private String name;
   private OmegaScheduler scheduler;
-  private Cluster cellState;
+  private Map<Long, Usage> cellState;
   private HashBasedTable<Long, Integer, TaskDiet> tasks;
 
   public OmegaApplication(String name, OmegaScheduler scheduler) {
@@ -40,17 +40,17 @@ public class OmegaApplication implements Application {
     long startTime;
 
     startTime = System.currentTimeMillis();
-    Node node = find(task, constraints);
+    long node = find(task, constraints);
     if (System.currentTimeMillis() - startTime > 500) {
       LOG.warn("Task finding took " + (System.currentTimeMillis() - startTime) + " ms");
     }
-    if (node == null) {
+    if (node == -1) {
       Measurements.unscheduledTaskCount++;
       // LOG.warn("Application cannot find a node for the task: {}", task);
       return false;
     }
     Map<Long, Node.Resource> proposal = Maps.newHashMap();
-    proposal.put(node.getId(), new Node.Resource(TaskEvent.getMemory(task), TaskEvent.getCPU(task)));
+    proposal.put(node, new Node.Resource(TaskEvent.getMemory(task), TaskEvent.getCPU(task)));
     startTime = System.currentTimeMillis();
     OmegaScheduler.TransactionResponse response = scheduler.commit(proposal);
     if (System.currentTimeMillis() - startTime > 500) {
@@ -58,7 +58,7 @@ public class OmegaApplication implements Application {
     }
     cellState = response.getCellState();
     if (response.getResult().equals(OmegaScheduler.TransactionResult.SUCCESS)) {
-      tasks.put(jobID, TaskEvent.getIndex(task), new TaskDiet(node.getId(), TaskEvent.getMemory(task), TaskEvent.getCPU(task)));
+      tasks.put(jobID, TaskEvent.getIndex(task), new TaskDiet(node, TaskEvent.getMemory(task), TaskEvent.getCPU(task)));
       return true;
     }
     LOG.error("Transaction failed.");
@@ -66,17 +66,17 @@ public class OmegaApplication implements Application {
     // TODO: Since this is single thread simulator, there will at most one Tx failure here because the app will get
     // most recent CellState. That means, if the above Tx has failed, the next one is surely gonna succeed.
     node = find(task, constraints);
-    if (node == null) {
+    if (node == -1) {
       //LOG.warn("Application cannot find a node for the task: {}", task);
       Measurements.unscheduledTaskCount++;
       return false;
     }
     proposal.clear();
-    proposal.put(node.getId(), new Node.Resource(TaskEvent.getMemory(task), TaskEvent.getCPU(task)));
+    proposal.put(node, new Node.Resource(TaskEvent.getMemory(task), TaskEvent.getCPU(task)));
     response = scheduler.commit(proposal);
     cellState = response.getCellState();
     if (response.getResult().equals(OmegaScheduler.TransactionResult.SUCCESS)) {
-      tasks.put(jobID, TaskEvent.getIndex(task), new TaskDiet(node.getId(), TaskEvent.getMemory(task), TaskEvent.getCPU(task)));
+      tasks.put(jobID, TaskEvent.getIndex(task), new TaskDiet(node, TaskEvent.getMemory(task), TaskEvent.getCPU(task)));
       return true;
     } else {
       LOG.error("Second Tx cannot fail. How come ? You gotta investigate :(");
@@ -84,22 +84,21 @@ public class OmegaApplication implements Application {
     }
   }
 
-  private Node find(String[] task, List<String[]> constraints) {
+  private long find(String[] task, List<String[]> constraints) {
     long startTime = System.currentTimeMillis();
-    Iterator<Node> iterator = cellState.getIterator();
+    Iterator<Long> iterator = cellState.keySet().iterator();
     int count=0;
     while (iterator.hasNext()) {
       count++;
-      Node node = iterator.next();
-      if (match(node, task, constraints)) {
+      long id = iterator.next();
+      if (match(cellState.get(id), task, constraints, OmegaSimulator.cluster.safeGet(id))) {
         if (System.currentTimeMillis() - startTime > 500) {
           LOG.warn("Task find took " + (System.currentTimeMillis() - startTime) + " ms. Iterations: " + count);
         }
-        return node;
+        return id;
       }
     }
-
-    return null;
+    return -1;
   }
 
   public TaskDiet getTask(long jobID, int index) {
@@ -110,10 +109,10 @@ public class OmegaApplication implements Application {
     tasks.remove(jobID, index);
   }
 
-  private boolean match(Node node, String[] task, List<String[]> constraints) {
+  private boolean match(Usage usage, String[] task, List<String[]> constraints, Node node) {
     // TODO: Not using machine id, scheduling class, priority, different m/c restriction, disk space request
     // in the task event.
-    if (!node.getUsage().check(TaskEvent.getMemory(task), TaskEvent.getCPU(task))) {
+    if (!UsageUtil.check(usage, TaskEvent.getMemory(task), TaskEvent.getCPU(task), node.getMemory(), node.getCpu())) {
       return false;
     }
     for (String[] constraint : constraints) {
