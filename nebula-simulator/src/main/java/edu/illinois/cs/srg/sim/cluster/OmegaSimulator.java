@@ -3,6 +3,7 @@ package edu.illinois.cs.srg.sim.cluster;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Queues;
+import com.google.common.collect.Sets;
 import edu.illinois.cs.srg.sim.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,7 +24,7 @@ public class OmegaSimulator {
   private static Map<Integer, String[]> lastConstraintEvents;
   private static Queue<Event> taskEndEvents;
   private static Map<Long, String> jobs;
-  private static List<String> appFilter;
+  private static Set<String> appFilter;
 
   private static TimeTracker timeTracker = new TimeTracker("edu.illinois.cs.srg.sim.cluster.OmegaSimulator: ");
 
@@ -38,7 +39,7 @@ public class OmegaSimulator {
     lastConstraintEvents = Maps.newHashMap();
     taskEndEvents = Queues.newPriorityQueue();
     jobs = Maps.newHashMap();
-    appFilter = Lists.newArrayList();
+    appFilter = Sets.newHashSet();
 
     // Only consider the first 1000 apps.
     initAppFilter(1000, 39729);
@@ -63,19 +64,19 @@ public class OmegaSimulator {
     Iterator<String[]> appIterator = googleTraceReader.open(Constants.APP_EVENTS);
     int index = 0;
     while (appIterator.hasNext()) {
+      String app[] = appIterator.next();
       if (index < lower) {
-        continue;
+        // No-op
       } else if (index > upper) {
         break;
+      } else {
+        appFilter.add(app[0]);
       }
-      appFilter.add(appIterator.next()[0]);
       index++;
     }
-    LOG.info(appFilter.toString());
   }
 
   public static void simulate() {
-
     GoogleTraceReader googleTraceReader =
       new GoogleTraceReader("/Users/gourav/projects/googleTraceData/clusterdata-2011-1");
     //TODO:
@@ -118,12 +119,12 @@ public class OmegaSimulator {
 
     while (keepRolling(machine, attribute, job, task, end)) {
 
-      /*if (System.currentTimeMillis() - startTime > 100000 && task != null) {
+      if (System.currentTimeMillis() - startTime > 100000 && task != null) {
         startTime = System.currentTimeMillis();
         LOG.info("Current Simulation Time: " + TaskEvent.getTimestamp(task.getEvent()));
         Measurements.print();
         timeTracker.checkpoint();
-      }*/
+      }
 
       switch (next(machine, attribute, job, task, end)) {
         case 0:
@@ -192,7 +193,7 @@ public class OmegaSimulator {
     }
     // Only processing SUBMIT events from traces. Other events should come from scheduler.
     if (JobEvent.getEventType(event) == JobEvent.SUBMIT && !jobs.containsKey(JobEvent.getID(event))) {
-
+      Measurements.jobSubmitEvents++;
       String app = JobEvent.getLogicalName(event);
       if (appFilter.contains(app)) {
         Measurements.jobsSubmitted++;
@@ -216,6 +217,8 @@ public class OmegaSimulator {
     }
     long jobID = TaskEvent.getJobID(event.getEvent());
     int index = TaskEvent.getIndex(event.getEvent());
+
+    Measurements.taskSubmitEvents++;
 
     if (jobs.containsKey(jobID)) {
       Measurements.tasksSubmitted++;
