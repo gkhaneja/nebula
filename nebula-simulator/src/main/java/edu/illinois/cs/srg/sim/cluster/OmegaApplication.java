@@ -91,7 +91,9 @@ public class OmegaApplication implements Application {
     while (iterator.hasNext()) {
       count++;
       long id = iterator.next();
-      if (match(cellState.get(id), task, constraints, OmegaSimulator.cluster.safeGet(id))) {
+
+      if (OmegaSimulator.cluster.safeContains(id) &&
+        match(cellState.get(id), task, constraints, OmegaSimulator.cluster.safeGet(id))) {
         if (System.currentTimeMillis() - startTime > 500) {
           LOG.warn("Task find took " + (System.currentTimeMillis() - startTime) + " ms. Iterations: " + count);
         }

@@ -16,6 +16,7 @@ public class Constants {
   public static final String MACHINE_ATTRIBUTES = "machine_attributes";
   public static final String TASK_CONSTRAINTS = "task_constraints";
   public static final String SORTED_TASK_CONSTRAINTS = "sorted_task_constraints";
+  public static final String APP_EVENTS = "apps";
 
   // TODO: Not implemented completely.
   public static boolean DISABLE_RUNTIME_EXCEPTION = false;

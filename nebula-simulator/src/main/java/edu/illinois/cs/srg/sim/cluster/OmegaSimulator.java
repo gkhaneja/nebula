@@ -23,6 +23,7 @@ public class OmegaSimulator {
   private static Map<Integer, String[]> lastConstraintEvents;
   private static Queue<Event> taskEndEvents;
   private static Map<Long, String> jobs;
+  private static List<String> appFilter;
 
   private static TimeTracker timeTracker = new TimeTracker("edu.illinois.cs.srg.sim.cluster.OmegaSimulator: ");
 
@@ -37,6 +38,10 @@ public class OmegaSimulator {
     lastConstraintEvents = Maps.newHashMap();
     taskEndEvents = Queues.newPriorityQueue();
     jobs = Maps.newHashMap();
+    appFilter = Lists.newArrayList();
+
+    // Only consider the first 1000 apps.
+    initAppFilter(1000, 39729);
 
     TimeTracker timeTracker2 = new TimeTracker("edu.illinois.cs.srg.sim.cluster.OmegaSimulator: ");
     try {
@@ -49,6 +54,26 @@ public class OmegaSimulator {
     timeTracker2.checkpoint("Finished Simulation.");
   }
 
+  /**
+   * Consider only the first 'filter' apps (based on the number jobs).
+   */
+  public static void initAppFilter(int lower, int upper) {
+    GoogleTraceReader googleTraceReader =
+      new GoogleTraceReader("/Users/gourav/projects/googleTraceData/clusterdata-2011-1");
+    Iterator<String[]> appIterator = googleTraceReader.open(Constants.APP_EVENTS);
+    int index = 0;
+    while (appIterator.hasNext()) {
+      if (index < lower) {
+        continue;
+      } else if (index > upper) {
+        break;
+      }
+      appFilter.add(appIterator.next()[0]);
+      index++;
+    }
+    LOG.info(appFilter.toString());
+  }
+
   public static void simulate() {
 
     GoogleTraceReader googleTraceReader =
@@ -56,7 +81,7 @@ public class OmegaSimulator {
     //TODO:
       //new GoogleTraceReader(NebulaConfiguration.getNebulaSite().getGoogleTraceHome());
     Iterator<String[]> jobIterator = googleTraceReader.open(Constants.JOB_EVENTS);
-    Iterator<String[]> taskIterator = googleTraceReader.open(Constants.SUBMIT_TASK_EVENTS, "part-00001-of-[0-9]*.csv");
+    Iterator<String[]> taskIterator = googleTraceReader.open(Constants.SUBMIT_TASK_EVENTS, "part-00000-of-[0-9]*.csv");
     Iterator<String[]> attributeIterator = googleTraceReader.open(Constants.MACHINE_ATTRIBUTES);
     Iterator<String[]> machineIterator = googleTraceReader.open(Constants.MACHINE_EVENTS);
 
@@ -167,14 +192,19 @@ public class OmegaSimulator {
     }
     // Only processing SUBMIT events from traces. Other events should come from scheduler.
     if (JobEvent.getEventType(event) == JobEvent.SUBMIT && !jobs.containsKey(JobEvent.getID(event))) {
-      Measurements.jobsSubmitted++;
-      jobs.put(JobEvent.getID(event), JobEvent.getLogicalName(event));
+
       String app = JobEvent.getLogicalName(event);
-      if (app.equals("")) {
-        app = Constants.DEFAULT_JOB_NAME;
-      }
-      if (!applications.containsKey(app)) {
-        applications.put(app, new OmegaApplication(app, scheduler));
+      if (appFilter.contains(app)) {
+        Measurements.jobsSubmitted++;
+        jobs.put(JobEvent.getID(event), JobEvent.getLogicalName(event));
+        if (app.equals("")) {
+          app = Constants.DEFAULT_JOB_NAME;
+        }
+        if (!applications.containsKey(app)) {
+          applications.put(app, new OmegaApplication(app, scheduler));
+        }
+      } else {
+        Measurements.unconsideredJobs++;
       }
     }
   }
@@ -187,66 +217,70 @@ public class OmegaSimulator {
     long jobID = TaskEvent.getJobID(event.getEvent());
     int index = TaskEvent.getIndex(event.getEvent());
 
-    Measurements.tasksSubmitted++;
+    if (jobs.containsKey(jobID)) {
+      Measurements.tasksSubmitted++;
 
-    // 1. Get all constraints associated with the task.
-    // TODO: What about 19m constraints thing ?
-    List<String[]> currentConstraints = Lists.newArrayList();
-    for (int i=0; i<constraintIterators.size(); i++) {
-      // process constraints from ith file.
-      if (lastConstraintEvents.containsKey(i) && lastConstraintEvents.get(i) != null) {
-        String[] lastConstraintEvent = lastConstraintEvents.get(i);
-        if (jobID == ConstraintEvent.getJobID(lastConstraintEvent) &&
-          index == ConstraintEvent.getIndex(lastConstraintEvent)) {
-          currentConstraints.add(lastConstraintEvents.remove(i));
-        } else {
-          continue;
+      // 1. Get all constraints associated with the task.
+      // TODO: What about 19m constraints thing ?
+      List<String[]> currentConstraints = Lists.newArrayList();
+      for (int i = 0; i < constraintIterators.size(); i++) {
+        // process constraints from ith file.
+        if (lastConstraintEvents.containsKey(i) && lastConstraintEvents.get(i) != null) {
+          String[] lastConstraintEvent = lastConstraintEvents.get(i);
+          if (jobID == ConstraintEvent.getJobID(lastConstraintEvent) &&
+            index == ConstraintEvent.getIndex(lastConstraintEvent)) {
+            currentConstraints.add(lastConstraintEvents.remove(i));
+          } else {
+            continue;
+          }
+        }
+        while (constraintIterators.get(i).hasNext()) {
+          String[] constraint = constraintIterators.get(i).next();
+          if (jobID == ConstraintEvent.getJobID(constraint) && index == ConstraintEvent.getIndex(constraint)) {
+            currentConstraints.add(constraint);
+          } else {
+            lastConstraintEvents.put(i, constraint);
+            break;
+          }
         }
       }
-      while (constraintIterators.get(i).hasNext()) {
-        String[] constraint = constraintIterators.get(i).next();
-        if (jobID == ConstraintEvent.getJobID(constraint) && index == ConstraintEvent.getIndex(constraint)) {
-          currentConstraints.add(constraint);
-        } else {
-          lastConstraintEvents.put(i, constraint);
-          break;
-        }
+      Measurements.constraintEvents += currentConstraints.size();
+      if (currentConstraints.size() > 0) {
+        Measurements.constrainedTasksCount++;
+      } else {
+        Measurements.freeTasksCount++;
       }
-    }
-    Measurements.constraintEvents += currentConstraints.size();
-    if (currentConstraints.size() > 0) {
-      Measurements.constrainedTasksCount++;
+
+      // process constraints for current task.
+      // 2. App should schedule task
+      String app = jobs.get(jobID);
+      if (!applications.containsKey(app)) {
+        LOG.error("Application {} does not exist: {}", app, event);
+        return;
+      }
+      long startTime = System.currentTimeMillis();
+      boolean isScheduled = applications.get(app).schedule(event.getEvent(), currentConstraints);
+      if (System.currentTimeMillis() - startTime > 500) {
+        LOG.warn("Task Scheduling took " + (System.currentTimeMillis() - startTime) + " ms: " + Measurements.taskEvents);
+      }
+
+      // 3. Add 'end' event
+      // timestamp, jobID, index, startTime
+      if (isScheduled) {
+        if (applications.get(app).getTask(TaskEvent.getJobID(event.getEvent()), TaskEvent.getIndex(event.getEvent())) == null) {
+          LOG.error("Scheduled Event not found.");
+          throw new RuntimeException("Scheduled Event not found.");
+        }
+        String[] endEvent = new String[]{
+          TaskEvent.getTimestamp(event.getEvent()) + Util.getTaskDuration() + "",
+          TaskEvent.getJobID(event.getEvent()) + "",
+          TaskEvent.getIndex(event.getEvent()) + "",
+          TaskEvent.getTimestamp(event.getEvent()) + ""
+        };
+        taskEndEvents.add(new Event(endEvent));
+      }
     } else {
-      Measurements.freeTasksCount++;
-    }
-
-    // process constraints for current task.
-    // 2. App should schedule task
-    String app = jobs.get(jobID);
-    if (!applications.containsKey(app)) {
-      LOG.error("Application {} does not exist: {}", app, event);
-      return;
-    }
-    long startTime = System.currentTimeMillis();
-    boolean isScheduled = applications.get(app).schedule(event.getEvent(), currentConstraints);
-    if (System.currentTimeMillis() - startTime > 500) {
-      LOG.warn("Task Scheduling took " + (System.currentTimeMillis() - startTime) + " ms: " + Measurements.taskEvents);
-    }
-
-    // 3. Add 'end' event
-    // timestamp, jobID, index, startTime
-    if (isScheduled) {
-      if (applications.get(app).getTask(TaskEvent.getJobID(event.getEvent()), TaskEvent.getIndex(event.getEvent())) == null) {
-        LOG.error("Scheduled Event not found.");
-        throw new RuntimeException("Scheduled Event not found.");
-      }
-      String[] endEvent = new String[]{
-        TaskEvent.getTimestamp(event.getEvent()) + Util.getTaskDuration() + "",
-        TaskEvent.getJobID(event.getEvent()) + "",
-        TaskEvent.getIndex(event.getEvent()) + "",
-        TaskEvent.getTimestamp(event.getEvent()) + ""
-      };
-      taskEndEvents.add(new Event(endEvent));
+      Measurements.unconsideredTasks++;
     }
   }
 

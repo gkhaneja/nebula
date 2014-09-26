@@ -32,9 +32,12 @@ public class Measurements {
   public static long failedOmegaTransaction = 0;
   public static long totalOmegaTransaction = 0;
 
+  public static long unconsideredTasks = 0;
+  public static long unconsideredJobs = 0;
+
   public static void print() {
-    LOG.info("Constraints before tasks: " + Measurements.constraintsBeforeTask);
-    LOG.info("Constraints after tasks: " + Measurements.constraintsAfterTask + "\n");
+    //LOG.info("Constraints before tasks: " + Measurements.constraintsBeforeTask);
+    //LOG.info("Constraints after tasks: " + Measurements.constraintsAfterTask + "\n");
 
     LOG.info("Job events: " + Measurements.jobEvents);
     LOG.info("Task events: " + Measurements.taskEvents);
@@ -48,6 +51,10 @@ public class Measurements {
 
     LOG.info("constrainedTasksCount: " + Measurements.constrainedTasksCount);
     LOG.info("freeTasksCount: " + Measurements.freeTasksCount + "\n");
+
+    LOG.info("unconsideredJobs: " + Measurements.unconsideredJobs);
+    LOG.info("unconsideredTasks: " + Measurements.unconsideredTasks + "\n");
+
 
     LOG.info("unscheduledTaskCount: " + Measurements.unscheduledTaskCount);
     LOG.info("failedOmegaTransaction: " + Measurements.failedOmegaTransaction);

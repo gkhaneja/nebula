@@ -120,7 +120,7 @@ public class GoogleTraceIterator implements Iterator {
   private void nextFile() throws NoSuchElementException {
     if (reader != null) {
       try {
-        if (LOG.isDebugEnabled() && timeTracker != null) {
+        if (LOG.isInfoEnabled() && timeTracker != null) {
           timeTracker.checkpoint("Done with " + this.directory + "/" + files[this.currentFile]);
         }
         reader.close();

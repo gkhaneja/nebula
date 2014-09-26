@@ -37,7 +37,7 @@ public class Analyzer {
     cluster = new Cluster();
     jobManager = new JobManager();
 
-    Util.checkpoint();
+    //Util.checkpoint();
     //Analyzer.analyzeMachines();
     Analyzer.jobsApps();
     //checkpoint();
@@ -72,9 +72,25 @@ public class Analyzer {
         jobs.put(JobEvent.getID(event), JobEvent.getLogicalName(event));
       }
     }
-    long totalJobs = jobs.size();
+    List<App> apps = Lists.newArrayList();
+    for (Map.Entry<String, Long> entry : jobsDistribution.entrySet()) {
+      apps.add(new App(entry.getKey(), entry.getValue()));
+    }
+    Collections.sort(apps, new Comparator<App>() {
+      @Override
+      public int compare(App o1, App o2) {
+        return -1*o1.count.compareTo(o2.count);
+      }
+    });
+    for (App app : apps) {
+      System.out.println(app);
+    }
+    //LOG.info("");
+
+    /*long totalJobs = jobs.size();
     List<Long> dist = Util.getZipf(jobsDistribution);
     LOG.info("Job Distribution #: " + dist);
+
     List<Double> fractions = Lists.newArrayList();
     long sum = 0;
     long significant = -1;
@@ -85,9 +101,25 @@ public class Analyzer {
         significant = i;
       }
     }
-    LOG.info("Fractions         : " + fractions);
-    LOG.info("Significant: " + significant);
+    LOG.info("Apps: " + apps.subList(0, 1000));*/
+    //LOG.info("Fractions         : " + fractions);
+    //LOG.info("Significant: " + significant);
     //Util.createGraphs(jobsDistribution, "JobDistOverApp");
+  }
+
+  static class App {
+    String name;
+    Long count;
+
+    App(String name, long count) {
+      this.name = name;
+      this.count = count;
+    }
+
+    @Override
+    public String toString() {
+      return name + "," + count;
+    }
   }
 
 
