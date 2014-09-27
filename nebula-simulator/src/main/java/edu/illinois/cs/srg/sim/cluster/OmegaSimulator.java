@@ -24,9 +24,9 @@ public class OmegaSimulator {
   private static Map<Integer, String[]> lastConstraintEvents;
   private static Queue<Event> taskEndEvents;
   private static Map<Long, String> jobs;
-  private static Set<String> appFilter;
+  private static RoundRobinAppFilter appFilter;
 
-  private static TimeTracker timeTracker = new TimeTracker("edu.illinois.cs.srg.sim.cluster.OmegaSimulator: ");
+  private static TimeTracker timeTracker = new TimeTracker("Global OmegaSimulator: ");
 
   public static void main(String[] args) {
     // Constants.DISABLE_RUNTIME_EXCEPTION = true;
@@ -39,12 +39,9 @@ public class OmegaSimulator {
     lastConstraintEvents = Maps.newHashMap();
     taskEndEvents = Queues.newPriorityQueue();
     jobs = Maps.newHashMap();
-    appFilter = Sets.newHashSet();
+    appFilter = new RoundRobinAppFilter(1000);
 
-    // Only consider the first 1000 apps.
-    initAppFilter(1000, 39729);
-
-    TimeTracker timeTracker2 = new TimeTracker("edu.illinois.cs.srg.sim.cluster.OmegaSimulator: ");
+    TimeTracker timeTracker2 = new TimeTracker("OmegaSimulator: ");
     try {
       OmegaSimulator.simulate();
     } catch (Exception e) {
@@ -53,27 +50,6 @@ public class OmegaSimulator {
       throw new RuntimeException(e);
     }
     timeTracker2.checkpoint("Finished Simulation.");
-  }
-
-  /**
-   * Consider only the first 'filter' apps (based on the number jobs).
-   */
-  public static void initAppFilter(int lower, int upper) {
-    GoogleTraceReader googleTraceReader =
-      new GoogleTraceReader("/Users/gourav/projects/googleTraceData/clusterdata-2011-1");
-    Iterator<String[]> appIterator = googleTraceReader.open(Constants.APP_EVENTS);
-    int index = 0;
-    while (appIterator.hasNext()) {
-      String app[] = appIterator.next();
-      if (index < lower) {
-        // No-op
-      } else if (index > upper) {
-        break;
-      } else {
-        appFilter.add(app[0]);
-      }
-      index++;
-    }
   }
 
   public static void simulate() {
@@ -183,8 +159,6 @@ public class OmegaSimulator {
     }
     Measurements.print();
     LOG.info("No. of total nodes added: " + cluster.getSize());
-    //LOG.info("Cluster size: " + Util.getSize(cluster));
-
   }
 
   private static void processJobEvent(Event event) {
@@ -194,10 +168,10 @@ public class OmegaSimulator {
     // Only processing SUBMIT events from traces. Other events should come from scheduler.
     if (JobEvent.getEventType(event) == JobEvent.SUBMIT && !jobs.containsKey(JobEvent.getID(event))) {
       Measurements.jobSubmitEvents++;
-      String app = JobEvent.getLogicalName(event);
-      if (appFilter.contains(app)) {
+      String app = appFilter.getApp(event.getEvent());
+      if (app != null) {
         Measurements.jobsSubmitted++;
-        jobs.put(JobEvent.getID(event), JobEvent.getLogicalName(event));
+        jobs.put(JobEvent.getID(event), app);
         if (app.equals("")) {
           app = Constants.DEFAULT_JOB_NAME;
         }
@@ -219,8 +193,8 @@ public class OmegaSimulator {
     int index = TaskEvent.getIndex(event.getEvent());
 
     Measurements.taskSubmitEvents++;
-
-    if (jobs.containsKey(jobID)) {
+    String app = jobs.get(jobID);
+    if (app != null) {
       Measurements.tasksSubmitted++;
 
       // 1. Get all constraints associated with the task.
@@ -256,16 +230,7 @@ public class OmegaSimulator {
 
       // process constraints for current task.
       // 2. App should schedule task
-      String app = jobs.get(jobID);
-      if (!applications.containsKey(app)) {
-        LOG.error("Application {} does not exist: {}", app, event);
-        return;
-      }
-      long startTime = System.currentTimeMillis();
       boolean isScheduled = applications.get(app).schedule(event.getEvent(), currentConstraints);
-      if (System.currentTimeMillis() - startTime > 500) {
-        LOG.warn("Task Scheduling took " + (System.currentTimeMillis() - startTime) + " ms: " + Measurements.taskEvents);
-      }
 
       // 3. Add 'end' event
       // timestamp, jobID, index, startTime
@@ -281,6 +246,8 @@ public class OmegaSimulator {
           TaskEvent.getTimestamp(event.getEvent()) + ""
         };
         taskEndEvents.add(new Event(endEvent));
+      } else {
+        Measurements.unscheduledTaskCount++;
       }
     } else {
       Measurements.unconsideredTasks++;

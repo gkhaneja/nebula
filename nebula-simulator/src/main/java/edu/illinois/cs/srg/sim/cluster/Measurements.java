@@ -37,6 +37,10 @@ public class Measurements {
   public static long failedOmegaTransaction = 0;
   public static long totalOmegaTransaction = 0;
 
+  public static long findTime = 0;
+  public static long commitTime = 0;
+  public static long scheduleTime = 0;
+
 
 
   public static void print() {
@@ -64,6 +68,12 @@ public class Measurements {
     LOG.info("unscheduledTaskCount: " + Measurements.unscheduledTaskCount);
     LOG.info("failedOmegaTransaction: " + Measurements.failedOmegaTransaction);
     LOG.info("totalOmegaTransaction: " + Measurements.totalOmegaTransaction + "\n");
+
+    LOG.info("findTime: " + Measurements.findTime);
+    LOG.info("commitTime: " + Measurements.commitTime);
+    LOG.info("scheduleTime: " + Measurements.scheduleTime + "\n");
+
+
     LOG.info("----------------------------------------------------------------------------------------------- \n\n");
   }
 

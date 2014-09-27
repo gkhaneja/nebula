@@ -31,7 +31,6 @@ public class OmegaApplication implements Application {
     tasks = HashBasedTable.create();
   }
 
-
   @Override
   public boolean schedule(String[] task, List<String[]> constraints) {
     //TODO: Should there be some delay associated here, depending on the application's busyness.
@@ -41,34 +40,31 @@ public class OmegaApplication implements Application {
 
     startTime = System.currentTimeMillis();
     long node = find(task, constraints);
-    if (System.currentTimeMillis() - startTime > 500) {
-      LOG.warn("Task finding took " + (System.currentTimeMillis() - startTime) + " ms");
-    }
+    Measurements.findTime += (System.currentTimeMillis() - startTime);
+
     if (node == -1) {
-      Measurements.unscheduledTaskCount++;
-      // LOG.warn("Application cannot find a node for the task: {}", task);
       return false;
     }
+
     Map<Long, Node.Resource> proposal = Maps.newHashMap();
     proposal.put(node, new Node.Resource(TaskEvent.getMemory(task), TaskEvent.getCPU(task)));
-    startTime = System.currentTimeMillis();
     OmegaScheduler.TransactionResponse response = scheduler.commit(proposal);
-    if (System.currentTimeMillis() - startTime > 500) {
-      LOG.warn("Task commit took " + (System.currentTimeMillis() - startTime) + " ms");
-    }
     cellState = response.getCellState();
+
     if (response.getResult().equals(OmegaScheduler.TransactionResult.SUCCESS)) {
       tasks.put(jobID, TaskEvent.getIndex(task), new TaskDiet(node, TaskEvent.getMemory(task), TaskEvent.getCPU(task)));
       return true;
     }
     LOG.error("Transaction failed.");
-    Measurements.failedOmegaTransaction++;
+    return false;
+
+    /*Measurements.failedOmegaTransaction++;
     // TODO: Since this is single thread simulator, there will at most one Tx failure here because the app will get
     // most recent CellState. That means, if the above Tx has failed, the next one is surely gonna succeed.
     node = find(task, constraints);
     if (node == -1) {
       //LOG.warn("Application cannot find a node for the task: {}", task);
-      Measurements.unscheduledTaskCount++;
+      // Measurements.unscheduledTaskCount++;
       return false;
     }
     proposal.clear();
@@ -81,22 +77,15 @@ public class OmegaApplication implements Application {
     } else {
       LOG.error("Second Tx cannot fail. How come ? You gotta investigate :(");
       return false;
-    }
+    }*/
   }
 
   private long find(String[] task, List<String[]> constraints) {
-    long startTime = System.currentTimeMillis();
     Iterator<Long> iterator = cellState.keySet().iterator();
-    int count=0;
     while (iterator.hasNext()) {
-      count++;
       long id = iterator.next();
-
       if (OmegaSimulator.cluster.safeContains(id) &&
         match(cellState.get(id), task, constraints, OmegaSimulator.cluster.safeGet(id))) {
-        if (System.currentTimeMillis() - startTime > 500) {
-          LOG.warn("Task find took " + (System.currentTimeMillis() - startTime) + " ms. Iterations: " + count);
-        }
         return id;
       }
     }
@@ -154,5 +143,4 @@ public class OmegaApplication implements Application {
     }
     return true;
   }
-
 }
