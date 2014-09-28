@@ -1,9 +1,11 @@
 package edu.illinois.cs.srg.sim.cluster;
 
 import com.google.common.collect.Maps;
+import edu.illinois.cs.srg.sim.util.OmegaConf;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 
@@ -48,8 +50,9 @@ public class OmegaScheduler {
     cellState.put(id, new Usage());
   }
 
-  public TransactionResponse commit(Map<Long, Node.Resource> proposals) {
+  public TransactionResponse commit(Map<Long, Node.Resource> proposals, boolean returnClusterCopy) {
     Measurements.totalOmegaTransaction++;
+
     //TODO: Assuming all Tx are all-or-nothing (atomic, and not incremental).
     // TODO: Not a thread safe method. This method should be executed atomically.
     //TODO: Trade-off between 'looping twice with two copies' and 'looping once with three copies'.
@@ -57,7 +60,7 @@ public class OmegaScheduler {
     // Assumption: Only one proposal
     if (proposals.size() > 1) {
       LOG.error("Proposal size should be smaller that one: {}", proposals);
-      return new TransactionResponse(getCellStateReference(), TransactionResult.INVALID);
+      return new TransactionResponse(getCellState(returnClusterCopy), TransactionResult.INVALID);
     }
 
     //TODO: Expectation of only one proposal to avoid making another copy.
@@ -71,14 +74,14 @@ public class OmegaScheduler {
           UsageUtil.add(cellState.get(id), resource.getMemory(), resource.getCpu());
         } else {
           //TODO: Ref
-          return new TransactionResponse(getCellStateReference(), TransactionResult.RESOURCE_OVERFLOW);
+          return new TransactionResponse(getCellState(returnClusterCopy), TransactionResult.RESOURCE_OVERFLOW);
         }
       } else {
-        return new TransactionResponse(getCellStateReference(), TransactionResult.NODE_NOT_FOUND);
+        return new TransactionResponse(getCellState(returnClusterCopy), TransactionResult.NODE_NOT_FOUND);
       }
     }
     //cellState = cellState;
-    return new TransactionResponse(cellState, TransactionResult.SUCCESS);
+    return new TransactionResponse(getCellState(returnClusterCopy), TransactionResult.SUCCESS);
   }
 
   public class TransactionResponse {
@@ -99,9 +102,21 @@ public class OmegaScheduler {
     }
   }
 
-  /*public Cluster getCellState() {
-    return cellState.copyOf();
-  }*/
+  public Map<Long, Usage> getCellState(boolean seriously) {
+    if (!seriously) {
+      return null;
+    }
+    if (OmegaConf.COPY_CELL_STATE) {
+      Map<Long, Usage> copy = Maps.newHashMap();
+      for (Map.Entry<Long, Usage> entry : cellState.entrySet()) {
+        copy.put(entry.getKey(), new Usage(entry.getValue()));
+      }
+      return copy;
+      //return new HashMap<Long, Usage>(cellState);
+    } else {
+      return cellState;
+    }
+  }
 
   @Deprecated
   public Map<Long, Usage> getCellStateReference() {

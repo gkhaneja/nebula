@@ -26,7 +26,7 @@ public class OmegaApplication implements Application {
     this.name = name;
     this.scheduler = scheduler;
     //TODO: Change this. Debugging.
-    cellState = scheduler.getCellStateReference();
+    cellState = scheduler.getCellState(true);
 
     tasks = HashBasedTable.create();
   }
@@ -48,36 +48,36 @@ public class OmegaApplication implements Application {
 
     Map<Long, Node.Resource> proposal = Maps.newHashMap();
     proposal.put(node, new Node.Resource(TaskEvent.getMemory(task), TaskEvent.getCPU(task)));
-    OmegaScheduler.TransactionResponse response = scheduler.commit(proposal);
+    OmegaScheduler.TransactionResponse response = scheduler.commit(proposal, true);
     cellState = response.getCellState();
 
     if (response.getResult().equals(OmegaScheduler.TransactionResult.SUCCESS)) {
       tasks.put(jobID, TaskEvent.getIndex(task), new TaskDiet(node, TaskEvent.getMemory(task), TaskEvent.getCPU(task)));
       return true;
     }
-    LOG.error("Transaction failed.");
-    return false;
+    //LOG.error("Transaction failed.");
+    //return false;
 
-    /*Measurements.failedOmegaTransaction++;
+    Measurements.failedOmegaTransaction++;
+    LOG.debug("Tx failed. Retrying.");
     // TODO: Since this is single thread simulator, there will at most one Tx failure here because the app will get
     // most recent CellState. That means, if the above Tx has failed, the next one is surely gonna succeed.
     node = find(task, constraints);
     if (node == -1) {
-      //LOG.warn("Application cannot find a node for the task: {}", task);
-      // Measurements.unscheduledTaskCount++;
       return false;
     }
     proposal.clear();
     proposal.put(node, new Node.Resource(TaskEvent.getMemory(task), TaskEvent.getCPU(task)));
-    response = scheduler.commit(proposal);
-    cellState = response.getCellState();
+    //TODO: To optimize a little, not updating the cellState with your own latest changes.
+    response = scheduler.commit(proposal, false);
+    // cellState = response.getCellState();
     if (response.getResult().equals(OmegaScheduler.TransactionResult.SUCCESS)) {
       tasks.put(jobID, TaskEvent.getIndex(task), new TaskDiet(node, TaskEvent.getMemory(task), TaskEvent.getCPU(task)));
       return true;
     } else {
       LOG.error("Second Tx cannot fail. How come ? You gotta investigate :(");
       return false;
-    }*/
+    }
   }
 
   private long find(String[] task, List<String[]> constraints) {
@@ -142,5 +142,10 @@ public class OmegaApplication implements Application {
       }
     }
     return true;
+  }
+
+  @Deprecated
+  public Map<Long, Usage> getCellState() {
+    return cellState;
   }
 }

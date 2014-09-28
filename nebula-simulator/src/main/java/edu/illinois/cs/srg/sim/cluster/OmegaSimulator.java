@@ -58,15 +58,19 @@ public class OmegaSimulator {
     //TODO:
       //new GoogleTraceReader(NebulaConfiguration.getNebulaSite().getGoogleTraceHome());
     Iterator<String[]> jobIterator = googleTraceReader.open(Constants.JOB_EVENTS);
-    Iterator<String[]> taskIterator = googleTraceReader.open(Constants.SUBMIT_TASK_EVENTS, "part-00000-of-[0-9]*.csv");
+    Iterator<String[]> taskIterator = googleTraceReader.open(Constants.SUBMIT_TASK_EVENTS, "part-0000[1-9]-of-[0-9]*.csv");
     Iterator<String[]> attributeIterator = googleTraceReader.open(Constants.MACHINE_ATTRIBUTES);
     Iterator<String[]> machineIterator = googleTraceReader.open(Constants.MACHINE_EVENTS);
 
     List<Iterator<String[]>> constraintIterators = Lists.newArrayList();
     //TODO: Only got 313 constraints sorted :)  Sort rest of them.
-    for (int i=0; i<=313; i++) {
-      String pattern = "part-" + String.format("%05d", i) + "-of-00500.csv";
-      constraintIterators.add(googleTraceReader.open(Constants.SORTED_TASK_CONSTRAINTS, pattern));
+    for (int i=0; i<500; i++) {
+      String pattern = "part-" + String.format("%05d", i) + "-of-00[0-9][0-9][0-9].csv";
+      try {
+        constraintIterators.add(googleTraceReader.open(Constants.DEBUG_SORTED_TASK_CONSTRAINTS, pattern));
+      } catch (NoSuchElementException e) {
+        // ignore
+      }
     }
 
     Event job = null;
@@ -162,6 +166,7 @@ public class OmegaSimulator {
   }
 
   private static void processJobEvent(Event event) {
+    LOG.debug("Process Job Event {}", event);
     if (event == null) {
       return;
     }
@@ -185,7 +190,7 @@ public class OmegaSimulator {
   }
 
   private static void processSubmitTaskEvent(Event event, List<Iterator<String[]>> constraintIterators) {
-    //LOG.info("Process Task Event {}", event);
+    LOG.debug("Process Task Event {}", event);
     if (event == null) {
       return;
     }
@@ -230,7 +235,9 @@ public class OmegaSimulator {
 
       // process constraints for current task.
       // 2. App should schedule task
+      LOG.debug("Application {} with cellState {} is going to schedule task {}", app, applications.get(app).getCellState(), event);
       boolean isScheduled = applications.get(app).schedule(event.getEvent(), currentConstraints);
+      LOG.debug("The result was {}. Updated cellState {}", isScheduled, applications.get(app).getCellState());
 
       // 3. Add 'end' event
       // timestamp, jobID, index, startTime
@@ -272,7 +279,7 @@ public class OmegaSimulator {
   }
 
   private static void processMachineAttribute(String[] attribute) {
-    //LOG.debug("Attribute Event {}", attribute);
+    LOG.debug("Attribute Event {}", Arrays.toString(attribute));
     if (attribute == null) {
       return;
     }
@@ -285,7 +292,7 @@ public class OmegaSimulator {
   }
 
   private static void processMachineEvent(String[] event) {
-    //LOG.debug("Machine Event {}", event);
+    LOG.debug("Machine Event {}", Arrays.toString(event));
     if (event == null) {
       return;
     }

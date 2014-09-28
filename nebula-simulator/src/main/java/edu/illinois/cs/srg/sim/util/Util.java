@@ -44,7 +44,7 @@ public class Util {
    * @return
    */
   public static long getTaskDuration() {
-    long duration = 10;
+    long duration = 1000000000;
     /*int type = random.nextInt(3);
     switch (type) {
       case 0:

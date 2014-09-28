@@ -18,6 +18,12 @@ public class Constants {
   public static final String SORTED_TASK_CONSTRAINTS = "sorted_task_constraints";
   public static final String APP_EVENTS = "apps";
 
+  public static final String DEBUG_MACHINE_EVENTS = "debug_machine_events";
+  public static final String DEBUG_JOB_EVENTS = "debug_job_events";
+  public static final String DEBUG_SUBMIT_TASK_EVENTS = "debug_submit_task_events";
+  public static final String DEBUG_MACHINE_ATTRIBUTES = "debug_machine_attributes";
+  public static final String DEBUG_SORTED_TASK_CONSTRAINTS = "debug_sorted_task_constraints";
+
   // TODO: Not implemented completely.
   public static boolean DISABLE_RUNTIME_EXCEPTION = false;
 
