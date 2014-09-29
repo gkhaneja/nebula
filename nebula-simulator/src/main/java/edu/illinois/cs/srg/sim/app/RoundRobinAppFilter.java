@@ -1,8 +1,4 @@
-package edu.illinois.cs.srg.sim.cluster;
-
-import com.google.common.collect.Lists;
-
-import java.util.List;
+package edu.illinois.cs.srg.sim.app;
 
 /**
  * Created by gourav on 9/26/14.

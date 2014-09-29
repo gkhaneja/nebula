@@ -5,8 +5,6 @@ import com.google.common.collect.Multimap;
 import com.google.common.collect.Table;
 import com.panayotis.gnuplot.JavaPlot;
 import com.panayotis.gnuplot.terminal.PostscriptTerminal;
-import com.sun.xml.internal.messaging.saaj.util.ByteOutputStream;
-import edu.illinois.cs.srg.sim.cluster.TaskLight;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,8 +41,12 @@ public class Util {
    * Returns random task duration in microseconds.
    * @return
    */
+  public static long[] taskDurations = {15, 30, 500, 1000};
+  public static int next = 0;
   public static long getTaskDuration() {
-    long duration = 1000000000;
+    long duration = taskDurations[next] * 60 * 1000000;
+    next = (++next) % taskDurations.length;
+    //long duration = 1000000000;
     /*int type = random.nextInt(3);
     switch (type) {
       case 0:

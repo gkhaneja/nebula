@@ -1,13 +1,14 @@
-package edu.illinois.cs.srg.sim.cluster;
+package edu.illinois.cs.srg.sim.task;
 
 import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
+import edu.illinois.cs.srg.sim.util.Event;
+import edu.illinois.cs.srg.sim.job.JobState;
+import edu.illinois.cs.srg.sim.job.JobStateMachine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Created by gourav on 9/8/14.

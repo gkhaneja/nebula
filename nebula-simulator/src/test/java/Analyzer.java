@@ -1,8 +1,13 @@
 import com.google.common.collect.*;
 import com.panayotis.gnuplot.JavaPlot;
-import com.panayotis.gnuplot.terminal.ImageTerminal;
 import com.panayotis.gnuplot.terminal.PostscriptTerminal;
 import edu.illinois.cs.srg.sim.cluster.*;
+import edu.illinois.cs.srg.sim.job.JobEvent;
+import edu.illinois.cs.srg.sim.job.JobManager;
+import edu.illinois.cs.srg.sim.task.ConstraintEvent;
+import edu.illinois.cs.srg.sim.task.TaskArrivalComparator;
+import edu.illinois.cs.srg.sim.task.TaskEvent;
+import edu.illinois.cs.srg.sim.task.TaskLight;
 import edu.illinois.cs.srg.sim.util.Constants;
 import edu.illinois.cs.srg.sim.util.GoogleTraceReader;
 import edu.illinois.cs.srg.sim.util.NebulaConfiguration;
@@ -39,8 +44,45 @@ public class Analyzer {
 
     //Util.checkpoint();
     //Analyzer.analyzeMachines();
-    Analyzer.jobsApps();
+    Analyzer.analyzeResourceRequirements();
     //checkpoint();
+  }
+
+  public static void analyzeResourceRequirements() {
+    GoogleTraceReader googleTraceReader =
+      new GoogleTraceReader(NebulaConfiguration.getNebulaSite().getGoogleTraceHome());
+    Iterator<String[]> taskIterator = googleTraceReader.open(Constants.SUBMIT_TASK_EVENTS);
+
+    Map<Double, Long> cpu = Maps.newHashMap();
+    Map<Double, Long> memory = Maps.newHashMap();
+
+    while (taskIterator.hasNext()) {
+      String[] task = taskIterator.next();
+      Util.increment(cpu, TaskEvent.getCPU(task));
+      Util.increment(memory, TaskEvent.getMemory(task));
+    }
+
+    LOG.info("CPU: Size: {}, Zeros: {}", cpu.size(), cpu.get(0));
+    LOG.info("Memory: Size: {}, Zeros: {}", memory.size(), memory.get(0));
+    LOG.info("cpu: {}", cpu);
+    LOG.info("memory: {}", memory);
+
+    plotMap(cpu, "cpu");
+    plotMap(memory, "memory");
+
+  }
+
+  public static void plotMap(Map<Double, Long> map, String name) {
+    double[][] plotData = new double[map.size()][];
+    int index = 0;
+    for (Map.Entry<Double, Long> entry : map.entrySet()) {
+      plotData[index++] = new double[]{entry.getKey(), entry.getValue()};
+    }
+    name = Constants.HOME_GRAPHS + "/" + name;
+    JavaPlot javaPlot = new JavaPlot();
+    javaPlot.setTerminal(new PostscriptTerminal(name + ".zipf.eps"));
+    javaPlot.addPlot(plotData);
+    javaPlot.plot();
   }
 
   public static void tasksPerJobDistribution() {
@@ -344,6 +386,7 @@ public class Analyzer {
       }
     }
   }
+
 
   private static void processJobEvent(String[] jobEvent) {
     if (jobEvent == null) {

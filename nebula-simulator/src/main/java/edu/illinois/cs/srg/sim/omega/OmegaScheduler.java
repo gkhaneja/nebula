@@ -1,11 +1,12 @@
-package edu.illinois.cs.srg.sim.cluster;
+package edu.illinois.cs.srg.sim.omega;
 
 import com.google.common.collect.Maps;
-import edu.illinois.cs.srg.sim.util.OmegaConf;
+import edu.illinois.cs.srg.sim.cluster.*;
+import edu.illinois.cs.srg.sim.util.Measurements;
+import edu.illinois.cs.srg.sim.util.UsageUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 
@@ -70,7 +71,7 @@ public class OmegaScheduler {
       Node.Resource resource = proposal.getValue();
       if (OmegaSimulator.cluster.safeContains(id)) {
         if (UsageUtil.check(cellState.get(id), resource.getMemory(), resource.getCpu(),
-          OmegaSimulator.cluster.safeGet(id).getMemory(), OmegaSimulator.cluster.safeGet(id).getCpu()  )) {
+          OmegaSimulator.cluster.safeGet(id).getMemory(), OmegaSimulator.cluster.safeGet(id).getCpu())) {
           UsageUtil.add(cellState.get(id), resource.getMemory(), resource.getCpu());
         } else {
           //TODO: Ref

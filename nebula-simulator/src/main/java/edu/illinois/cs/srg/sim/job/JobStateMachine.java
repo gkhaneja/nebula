@@ -1,4 +1,4 @@
-package edu.illinois.cs.srg.sim.cluster;
+package edu.illinois.cs.srg.sim.job;
 
 import edu.illinois.cs.srg.sim.util.Constants;
 import org.slf4j.Logger;

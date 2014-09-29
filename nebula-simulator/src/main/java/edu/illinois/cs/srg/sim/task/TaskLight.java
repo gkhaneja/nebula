@@ -1,4 +1,4 @@
-package edu.illinois.cs.srg.sim.cluster;
+package edu.illinois.cs.srg.sim.task;
 
 /**
  * Created by gourav on 9/14/14.

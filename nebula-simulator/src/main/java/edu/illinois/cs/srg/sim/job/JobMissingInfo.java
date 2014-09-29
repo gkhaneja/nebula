@@ -1,4 +1,4 @@
-package edu.illinois.cs.srg.sim.cluster;
+package edu.illinois.cs.srg.sim.job;
 
 /**
  * Created by gourav on 9/8/14.

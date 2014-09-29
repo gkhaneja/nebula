@@ -1,8 +1,10 @@
-package edu.illinois.cs.srg.sim.cluster;
+package edu.illinois.cs.srg.sim.job;
 
 /**
  * Created by gourav on 9/7/14.
  */
+
+import edu.illinois.cs.srg.sim.util.Event;
 
 /**
  * Also represents TaskEvent.

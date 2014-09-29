@@ -1,6 +1,5 @@
-package edu.illinois.cs.srg.sim.cluster;
+package edu.illinois.cs.srg.sim.util;
 
-import edu.illinois.cs.srg.sim.util.Util;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

@@ -1,6 +1,7 @@
 package edu.illinois.cs.srg.sim.cluster;
 
 import com.google.common.collect.Maps;
+import edu.illinois.cs.srg.sim.util.Constants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -88,9 +89,11 @@ public class Node {
     }
     if (googleTrace.length > 4 && !googleTrace[4].equals("")) {
       this.cpu = Double.parseDouble(googleTrace[4]);
+      cpu = cpu * (1 - Constants.OS_CPU_FRACTION);
     }
     if (googleTrace.length > 5 && !googleTrace[5].equals("")) {
       this.memory = Double.parseDouble(googleTrace[5]);
+      memory = memory * (1 - Constants.OS_MEMORY_FRACTION);
     }
   }
 

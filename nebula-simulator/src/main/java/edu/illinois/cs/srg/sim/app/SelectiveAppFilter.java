@@ -1,6 +1,7 @@
-package edu.illinois.cs.srg.sim.cluster;
+package edu.illinois.cs.srg.sim.app;
 
 import com.google.common.collect.Sets;
+import edu.illinois.cs.srg.sim.job.JobEvent;
 import edu.illinois.cs.srg.sim.util.Constants;
 import edu.illinois.cs.srg.sim.util.GoogleTraceReader;
 

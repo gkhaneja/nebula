@@ -24,6 +24,9 @@ public class Constants {
   public static final String DEBUG_MACHINE_ATTRIBUTES = "debug_machine_attributes";
   public static final String DEBUG_SORTED_TASK_CONSTRAINTS = "debug_sorted_task_constraints";
 
+  public static final double OS_CPU_FRACTION = 0.2;
+  public static final double OS_MEMORY_FRACTION = 0.2;
+
   // TODO: Not implemented completely.
   public static boolean DISABLE_RUNTIME_EXCEPTION = false;
 

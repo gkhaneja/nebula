@@ -1,9 +1,15 @@
-package edu.illinois.cs.srg.sim.cluster;
+package edu.illinois.cs.srg.sim.omega;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Queues;
-import com.google.common.collect.Sets;
+import edu.illinois.cs.srg.sim.app.RoundRobinAppFilter;
+import edu.illinois.cs.srg.sim.cluster.*;
+import edu.illinois.cs.srg.sim.job.JobEvent;
+import edu.illinois.cs.srg.sim.task.ConstraintEvent;
+import edu.illinois.cs.srg.sim.task.EndEvent;
+import edu.illinois.cs.srg.sim.task.TaskDiet;
+import edu.illinois.cs.srg.sim.task.TaskEvent;
 import edu.illinois.cs.srg.sim.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -58,7 +64,7 @@ public class OmegaSimulator {
     //TODO:
       //new GoogleTraceReader(NebulaConfiguration.getNebulaSite().getGoogleTraceHome());
     Iterator<String[]> jobIterator = googleTraceReader.open(Constants.JOB_EVENTS);
-    Iterator<String[]> taskIterator = googleTraceReader.open(Constants.SUBMIT_TASK_EVENTS, "part-0000[1-9]-of-[0-9]*.csv");
+    Iterator<String[]> taskIterator = googleTraceReader.open(Constants.SUBMIT_TASK_EVENTS, "part-00001-of-[0-9]*.csv");
     Iterator<String[]> attributeIterator = googleTraceReader.open(Constants.MACHINE_ATTRIBUTES);
     Iterator<String[]> machineIterator = googleTraceReader.open(Constants.MACHINE_EVENTS);
 
@@ -67,8 +73,9 @@ public class OmegaSimulator {
     for (int i=0; i<500; i++) {
       String pattern = "part-" + String.format("%05d", i) + "-of-00[0-9][0-9][0-9].csv";
       try {
-        constraintIterators.add(googleTraceReader.open(Constants.DEBUG_SORTED_TASK_CONSTRAINTS, pattern));
+        constraintIterators.add(googleTraceReader.open(Constants.SORTED_TASK_CONSTRAINTS, pattern));
       } catch (NoSuchElementException e) {
+        LOG.trace("Constraint file pattern {} was not found", pattern);
         // ignore
       }
     }

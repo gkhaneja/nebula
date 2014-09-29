@@ -1,4 +1,6 @@
-package edu.illinois.cs.srg.sim.cluster;
+package edu.illinois.cs.srg.sim.util;
+
+import edu.illinois.cs.srg.sim.cluster.Usage;
 
 /**
  * Created by gourav on 9/25/14.

@@ -1,4 +1,4 @@
-package edu.illinois.cs.srg.sim.cluster;
+package edu.illinois.cs.srg.sim.app;
 
 import java.util.List;
 

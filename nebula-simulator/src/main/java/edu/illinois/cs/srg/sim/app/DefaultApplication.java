@@ -1,6 +1,8 @@
-package edu.illinois.cs.srg.sim.cluster;
+package edu.illinois.cs.srg.sim.app;
 
 import com.google.common.collect.Maps;
+import edu.illinois.cs.srg.sim.cluster.Cluster;
+import edu.illinois.cs.srg.sim.job.Job;
 
 import java.util.Map;
 
