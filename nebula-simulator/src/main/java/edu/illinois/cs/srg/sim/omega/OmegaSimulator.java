@@ -21,13 +21,15 @@ import java.util.*;
  */
 public class OmegaSimulator {
   private static final Logger LOG = LoggerFactory.getLogger(OmegaSimulator.class);
+  static final boolean DEBUG = false;
 
   public static Cluster cluster;
   private static OmegaScheduler scheduler;
   private static Map<String, OmegaApplication> applications;
 
   // Helping variable.
-  private static Map<Integer, String[]> lastConstraintEvents;
+  private static Iterator<String[]> constraintIterator;
+  private static String[] lastConstraint;
   private static Queue<Event> taskEndEvents;
   private static Map<Long, String> jobs;
   private static RoundRobinAppFilter appFilter;
@@ -35,17 +37,15 @@ public class OmegaSimulator {
   private static TimeTracker timeTracker = new TimeTracker("Global OmegaSimulator: ");
 
   public static void main(String[] args) {
-    // Constants.DISABLE_RUNTIME_EXCEPTION = true;
 
     //NebulaConfiguration.init(OmegaSimulator.class.getResourceAsStream(Constants.NEBULA_SITE));
     cluster = new Cluster();
     scheduler = new OmegaScheduler();
     applications = Maps.newHashMap();
 
-    lastConstraintEvents = Maps.newHashMap();
     taskEndEvents = Queues.newPriorityQueue();
     jobs = Maps.newHashMap();
-    appFilter = new RoundRobinAppFilter(1000);
+    appFilter = new RoundRobinAppFilter(1500);
 
     TimeTracker timeTracker2 = new TimeTracker("OmegaSimulator: ");
     try {
@@ -61,23 +61,26 @@ public class OmegaSimulator {
   public static void simulate() {
     GoogleTraceReader googleTraceReader =
       new GoogleTraceReader("/Users/gourav/projects/googleTraceData/clusterdata-2011-1");
-    //TODO:
-      //new GoogleTraceReader(NebulaConfiguration.getNebulaSite().getGoogleTraceHome());
-    Iterator<String[]> jobIterator = googleTraceReader.open(Constants.JOB_EVENTS);
-    Iterator<String[]> taskIterator = googleTraceReader.open(Constants.SUBMIT_TASK_EVENTS, "part-00001-of-[0-9]*.csv");
-    Iterator<String[]> attributeIterator = googleTraceReader.open(Constants.MACHINE_ATTRIBUTES);
-    Iterator<String[]> machineIterator = googleTraceReader.open(Constants.MACHINE_EVENTS);
 
-    List<Iterator<String[]>> constraintIterators = Lists.newArrayList();
-    //TODO: Only got 313 constraints sorted :)  Sort rest of them.
-    for (int i=0; i<500; i++) {
-      String pattern = "part-" + String.format("%05d", i) + "-of-00[0-9][0-9][0-9].csv";
-      try {
-        constraintIterators.add(googleTraceReader.open(Constants.SORTED_TASK_CONSTRAINTS, pattern));
-      } catch (NoSuchElementException e) {
-        LOG.trace("Constraint file pattern {} was not found", pattern);
-        // ignore
-      }
+    String pattern =  "part-0000[1-9]-of-[0-9]*.csv";
+
+    Iterator<String[]> jobIterator;
+    Iterator<String[]> taskIterator;
+    Iterator<String[]> attributeIterator;
+    Iterator<String[]> machineIterator;
+
+    if (DEBUG) {
+      jobIterator = googleTraceReader.open(Constants.DEBUG_SUBMIT_JOB_EVENTS);
+      taskIterator = googleTraceReader.open(Constants.DEBUG_SUBMIT_TASK_EVENTS, pattern);
+      constraintIterator = googleTraceReader.open(Constants.DEBUG_FILTERED_CONSTRAINTS, pattern);
+      attributeIterator = googleTraceReader.open(Constants.DEBUG_MACHINE_ATTRIBUTES);
+      machineIterator = googleTraceReader.open(Constants.DEBUG_MACHINE_EVENTS);
+    } else {
+      jobIterator = googleTraceReader.open(Constants.SUBMIT_JOB_EVENTS);
+      taskIterator = googleTraceReader.open(Constants.SUBMIT_TASK_EVENTS, pattern);
+      constraintIterator = googleTraceReader.open(Constants.FILTERED_CONSTRAINED, pattern);
+      attributeIterator = googleTraceReader.open(Constants.MACHINE_ATTRIBUTES);
+      machineIterator = googleTraceReader.open(Constants.MACHINE_EVENTS);
     }
 
     Event job = null;
@@ -143,7 +146,7 @@ public class OmegaSimulator {
           break;
         case 3:
           // process task event
-          processSubmitTaskEvent(task, constraintIterators);
+          processSubmitTaskEvent(task);
           Measurements.taskEvents++;
           task = null;
           if (taskIterator.hasNext()) {
@@ -163,11 +166,10 @@ public class OmegaSimulator {
     }
 
     // Validation: all constraints are accounted for.
-    for (int i=0; i<constraintIterators.size(); i++) {
-      if (constraintIterators.get(i).hasNext()) {
-        // LOG.error("Inconsistency: There are constraints left to read.");
-      }
+    if (constraintIterator.hasNext()) {
+      LOG.error("Inconsistency: There are constraints left to read.");
     }
+
     Measurements.print();
     LOG.info("No. of total nodes added: " + cluster.getSize());
   }
@@ -178,25 +180,25 @@ public class OmegaSimulator {
       return;
     }
     // Only processing SUBMIT events from traces. Other events should come from scheduler.
-    if (JobEvent.getEventType(event) == JobEvent.SUBMIT && !jobs.containsKey(JobEvent.getID(event))) {
-      Measurements.jobSubmitEvents++;
-      String app = appFilter.getApp(event.getEvent());
-      if (app != null) {
-        Measurements.jobsSubmitted++;
-        jobs.put(JobEvent.getID(event), app);
-        if (app.equals("")) {
-          app = Constants.DEFAULT_JOB_NAME;
-        }
-        if (!applications.containsKey(app)) {
-          applications.put(app, new OmegaApplication(app, scheduler));
-        }
-      } else {
-        Measurements.unconsideredJobs++;
+
+    Measurements.jobSubmitEvents++;
+    String app = appFilter.getApp(event.getEvent());
+    if (app != null) {
+      Measurements.jobsSubmitted++;
+      if (app.equals("")) {
+        app = Constants.DEFAULT_JOB_NAME;
       }
+      jobs.put(JobEvent.getID(event), app);
+      if (!applications.containsKey(app)) {
+        applications.put(app, new OmegaApplication(app, scheduler));
+      }
+    } else {
+      Measurements.unconsideredJobs++;
     }
   }
 
-  private static void processSubmitTaskEvent(Event event, List<Iterator<String[]>> constraintIterators) {
+
+  private static void processSubmitTaskEvent(Event event) {
     LOG.debug("Process Task Event {}", event);
     if (event == null) {
       return;
@@ -210,27 +212,21 @@ public class OmegaSimulator {
       Measurements.tasksSubmitted++;
 
       // 1. Get all constraints associated with the task.
-      // TODO: What about 19m constraints thing ?
       List<String[]> currentConstraints = Lists.newArrayList();
-      for (int i = 0; i < constraintIterators.size(); i++) {
-        // process constraints from ith file.
-        if (lastConstraintEvents.containsKey(i) && lastConstraintEvents.get(i) != null) {
-          String[] lastConstraintEvent = lastConstraintEvents.get(i);
-          if (jobID == ConstraintEvent.getJobID(lastConstraintEvent) &&
-            index == ConstraintEvent.getIndex(lastConstraintEvent)) {
-            currentConstraints.add(lastConstraintEvents.remove(i));
-          } else {
-            continue;
-          }
+      if (lastConstraint != null) {
+        if (jobID == ConstraintEvent.getJobID(lastConstraint) &&
+          index == ConstraintEvent.getIndex(lastConstraint)) {
+          currentConstraints.add(lastConstraint);
+          lastConstraint = null;
         }
-        while (constraintIterators.get(i).hasNext()) {
-          String[] constraint = constraintIterators.get(i).next();
-          if (jobID == ConstraintEvent.getJobID(constraint) && index == ConstraintEvent.getIndex(constraint)) {
-            currentConstraints.add(constraint);
-          } else {
-            lastConstraintEvents.put(i, constraint);
-            break;
-          }
+      }
+      while (constraintIterator.hasNext()) {
+        String[] constraint = constraintIterator.next();
+        if (jobID == ConstraintEvent.getJobID(constraint) && index == ConstraintEvent.getIndex(constraint)) {
+          currentConstraints.add(constraint);
+        } else {
+          lastConstraint = constraint;
+          break;
         }
       }
       Measurements.constraintEvents += currentConstraints.size();
@@ -240,7 +236,6 @@ public class OmegaSimulator {
         Measurements.freeTasksCount++;
       }
 
-      // process constraints for current task.
       // 2. App should schedule task
       LOG.debug("Application {} with cellState {} is going to schedule task {}", app, applications.get(app).getCellState(), event);
       boolean isScheduled = applications.get(app).schedule(event.getEvent(), currentConstraints);
@@ -324,7 +319,7 @@ public class OmegaSimulator {
    * Returns true if there's at least one not null event.
    * @return
    */
-  private static boolean keepRolling(Event...events) {
+  public static boolean keepRolling(Event...events) {
     for (int i=0; i<events.length; i++) {
       if (events[i] != null) {
         return true;
@@ -339,7 +334,7 @@ public class OmegaSimulator {
    * @param events An array of events.
    * @return Next event. Returns -1 in case of no-event.
    */
-  private static int next(Event...events) {
+  public static int next(Event...events) {
     int next = -1;
     long minTime = Long.MAX_VALUE;
     for (int i=events.length-1 ; i>=0; i--) {

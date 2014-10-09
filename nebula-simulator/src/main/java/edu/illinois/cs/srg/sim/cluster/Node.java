@@ -19,7 +19,7 @@ public class Node {
   private double cpu;
   private double memory;
   private String platformID;
-  private Map<String, String> attributes;
+  public Map<String, String> attributes;
   private boolean isDeleted;
 
   public Node(String[] googleTrace) {
@@ -95,6 +95,25 @@ public class Node {
       this.memory = Double.parseDouble(googleTrace[5]);
       memory = memory * (1 - Constants.OS_MEMORY_FRACTION);
     }
+  }
+
+  @Override
+  public String toString() {
+    return new StringBuilder()
+      .append(id).append(";")
+      .append(cpu).append(";")
+      .append(memory).append(";")
+      .append(platformID).append(";")
+      .append(attributes).toString();
+  }
+
+  public String toStringWithoutAttributes() {
+    return new StringBuilder()
+      .append(id).append(";")
+      .append(cpu).append(";")
+      .append(memory).append(";")
+      .append(platformID).append(";")
+      .toString();
   }
 
   public class Usage {
@@ -177,5 +196,6 @@ public class Node {
     public double getCpu() {
       return cpu;
     }
+
   }
 }

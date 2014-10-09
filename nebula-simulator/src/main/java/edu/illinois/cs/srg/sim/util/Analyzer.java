@@ -1,20 +1,18 @@
+package edu.illinois.cs.srg.sim.util;
+
 import com.google.common.collect.*;
 import com.panayotis.gnuplot.JavaPlot;
 import com.panayotis.gnuplot.terminal.PostscriptTerminal;
 import edu.illinois.cs.srg.sim.cluster.*;
 import edu.illinois.cs.srg.sim.job.JobEvent;
 import edu.illinois.cs.srg.sim.job.JobManager;
+import edu.illinois.cs.srg.sim.omega.OmegaSimulator;
 import edu.illinois.cs.srg.sim.task.ConstraintEvent;
 import edu.illinois.cs.srg.sim.task.TaskArrivalComparator;
 import edu.illinois.cs.srg.sim.task.TaskEvent;
 import edu.illinois.cs.srg.sim.task.TaskLight;
-import edu.illinois.cs.srg.sim.util.Constants;
-import edu.illinois.cs.srg.sim.util.GoogleTraceReader;
-import edu.illinois.cs.srg.sim.util.NebulaConfiguration;
-import edu.illinois.cs.srg.sim.util.Util;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.slf4j.impl.SimpleLogger;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -33,18 +31,20 @@ public class Analyzer {
 
 
   public static void main(String[] args) {
-    // TODO: This is not working.
-    System.setProperty(SimpleLogger.DEFAULT_LOG_LEVEL_KEY, "debug");
     // TODO : Not implemented completely.
     Constants.DISABLE_RUNTIME_EXCEPTION = true;
 
-    NebulaConfiguration.init(Analyzer.class.getResourceAsStream(Constants.NEBULA_SITE));
+    if (args.length > 0) {
+      Util.TRACE_HOME = args[args.length - 1];
+      LOG.warn("TRACE_HOME set to {}", Util.TRACE_HOME);
+    }
+
     cluster = new Cluster();
     jobManager = new JobManager();
 
     //Util.checkpoint();
-    //Analyzer.analyzeMachines();
-    Analyzer.analyzeResourceRequirements();
+    //edu.illinois.cs.srg.sim.util.Analyzer.analyzeMachines();
+    Analyzer.sortConstraints();
     //checkpoint();
   }
 
@@ -171,13 +171,14 @@ public class Analyzer {
     Iterator<String[]> constraintIterator = googleTraceReader.open(Constants.TASK_CONSTRAINTS);
 
 
-    List<Long> constraints = Lists.newArrayList();
+    Set<String> constraints = Sets.newHashSet();
 
     while (constraintIterator.hasNext()) {
       String[] event = constraintIterator.next();
-      constraints.add(ConstraintEvent.getJobID(event));
+      String name = ConstraintEvent.getName(event);
+      constraints.add(name);
     }
-    LOG.info("Constraint size: " + constraints.size());
+    LOG.info("Unique constraint number: " + constraints.size());
   }
 
   public static void createConstrainedTaskArrivalOrder() {
@@ -214,13 +215,13 @@ public class Analyzer {
 
   public static void sortConstraints() {
     GoogleTraceReader googleTraceReader =
-      new GoogleTraceReader(NebulaConfiguration.getNebulaSite().getGoogleTraceHome());
+      new GoogleTraceReader(Util.TRACE_HOME);
 
     // Read constrainedTaskArrivalOrder
     List<TaskLight> tasksArrivalOrder = new ArrayList<TaskLight>();
     String file = "ConstrainedTaskArrivalOrder";
     try {
-      BufferedReader reader = new BufferedReader(new FileReader(new File(Util.LOG_HOME + file)));
+      BufferedReader reader = new BufferedReader(new FileReader(new File(Util.TRACE_HOME + "/" + file)));
       String line = reader.readLine();
       reader.close();
       line = line.substring(1, line.length() - 1);
@@ -232,13 +233,13 @@ public class Analyzer {
       line = null;
       tasksAsString.clear();
     } catch (IOException e) {
-      LOG.error("Cannot write to file: " + Util.LOG_HOME + file, e);
+      LOG.error("Cannot read from file: " + Util.TRACE_HOME + file, e);
     }
     Util.checkpoint("Read constrainedTaskArrivalOrder.");
 
 
     // Sort all files.
-    for (int i=314; i<=499; i++) {
+    for (int i=430; i<=499; i++) {
 
       String pattern = "part-" + String.format("%05d", i) + "-of-00500.csv";
       // sort one file 00001.
@@ -250,16 +251,67 @@ public class Analyzer {
         constraints.add(event);
       }
 
-      Collections.sort(constraints, new TaskArrivalComparator(tasksArrivalOrder));
+      LOG.info("Sorting {} constraints", constraints.size());
+      //Collections.sort(constraints, new TaskArrivalComparator(tasksArrivalOrder));
       // checkpoint("Created sorted constraints order.");
+      LOG.info("Sorted");
 
       // Writing to file.
-      Util.print(constraints, pattern);
+      //Util.print(constraints, pattern);
       constraints.clear();
-      Util.checkpoint("Sorted file " + pattern + ".");
+      //Util.checkpoint("Sorted file " + pattern + ".");
     }
 
   }
+
+  private static void extractUniqueConstraints(Event event, List<Iterator<String[]>> constraintIterators) {
+    /*if (event == null) {
+      return;
+    }
+    long jobID = TaskEvent.getJobID(event.getEvent());
+    int index = TaskEvent.getIndex(event.getEvent());
+    long taskTime = TaskEvent.getTimestamp(event.getEvent());
+
+    // 1. Get all constraints associated with the task.
+    Map<String, String[]> currentConstraints = Maps.newHashMap();
+    for (int i = 0; i < constraintIterators.size(); i++) {
+      // process constraints from ith file.
+      if (lastConstraintEvents.containsKey(i) && lastConstraintEvents.get(i) != null) {
+        String[] lastConstraintEvent = lastConstraintEvents.get(i);
+        if (jobID == ConstraintEvent.getJobID(lastConstraintEvent) &&
+          index == ConstraintEvent.getIndex(lastConstraintEvent)) {
+          String name = ConstraintEvent.getName(lastConstraintEvent);
+          long constraintTime = ConstraintEvent.getTime(lastConstraintEvent);
+          if (constraintTime <= taskTime && currentConstraints.containsKey(name) && constraintTime >= ConstraintEvent.getTime(currentConstraints.get(name))) {
+            currentConstraints.put(name, lastConstraintEvents.remove(i));
+          }
+        }
+      } else {
+        continue;
+      }
+    }
+    while (constraintIterators.get(i).hasNext()) {
+      String[] constraint = constraintIterators.get(i).next();
+      if (jobID == ConstraintEvent.getJobID(constraint) && index == ConstraintEvent.getIndex(constraint)) {
+        currentConstraints.add(constraint);
+      } else {
+        lastConstraintEvents.put(i, constraint);
+        break;
+      }
+    }
+  }
+
+  Measurements.constraintEvents += currentConstraints.size();
+  if (currentConstraints.size() > 0) {
+    Measurements.constrainedTasksCount++;
+  } else {
+    Measurements.freeTasksCount++;
+  }
+
+
+*/
+  }
+
 
   public static void constraintsPerJobDistribution() {
     GoogleTraceReader googleTraceReader =
@@ -334,6 +386,40 @@ public class Analyzer {
     Util.createGraphs(ids, "Events-Job");
 
 
+  }
+
+  public static void analyzeSubmitJobs() {
+    GoogleTraceReader googleTraceReader =
+      new GoogleTraceReader(NebulaConfiguration.getNebulaSite().getGoogleTraceHome());
+    Iterator<String[]> jobIterator = googleTraceReader.open(Constants.SUBMIT_JOB_EVENTS);
+    long events = 0;
+
+    while (jobIterator.hasNext()) {
+      String[] event = jobIterator.next();
+      if (JobEvent.getEventType(event) == JobEvent.SUBMIT) {
+        events++;
+      } else {
+        LOG.error("Non submit job event");
+      }
+    }
+    LOG.info("Events #: {}", events);
+  }
+
+  public static void analyzeSubmitTasks() {
+    GoogleTraceReader googleTraceReader =
+      new GoogleTraceReader(NebulaConfiguration.getNebulaSite().getGoogleTraceHome());
+    Iterator<String[]> taskIterator = googleTraceReader.open(Constants.SUBMIT_TASK_EVENTS);
+    long events = 0;
+
+    while (taskIterator.hasNext()) {
+      String[] event = taskIterator.next();
+      if (TaskEvent.getEventType(event) == JobEvent.SUBMIT) {
+        events++;
+      } else {
+        LOG.error("Non submit job event");
+      }
+    }
+    LOG.info("Events #: {}", events);
   }
 
   public static void analyzeTasks() {
@@ -442,15 +528,58 @@ public class Analyzer {
     }
   }
 
+  public static void analyzeCluster() {
+    GoogleTraceReader googleTraceReader =
+      new GoogleTraceReader(NebulaConfiguration.getNebulaSite().getGoogleTraceHome());
+    Iterator<String[]> attributeIterator = googleTraceReader.open(Constants.MACHINE_ATTRIBUTES);
+    Iterator<String[]> machineIterator = googleTraceReader.open(Constants.MACHINE_EVENTS);
+
+    Event machine = null;
+    if (machineIterator.hasNext()) {
+      machine = new Event(machineIterator.next());
+    }
+
+    Event attribute = null;
+    if (attributeIterator.hasNext()) {
+      attribute = new Event(attributeIterator.next());
+    }
+
+    while (OmegaSimulator.keepRolling(machine, attribute)) {
+
+      switch (OmegaSimulator.next(machine, attribute)) {
+        case 0:
+          // process machine event
+          Measurements.machineEvents++;
+          processMachineEvent(machine.getEvent());
+          machine = null;
+          if (machineIterator.hasNext()) {
+            machine = new Event(machineIterator.next());
+          }
+          break;
+        case 1:
+          // process attribute event
+          Measurements.attributeEvents++;
+          processMachineAttribute(attribute.getEvent());
+          attribute = null;
+          if (attributeIterator.hasNext()) {
+            attribute = new Event(attributeIterator.next());
+          }
+          break;
+        default:
+          LOG.warn("Unknown event.");
+      }
+    }
+    cluster.printStats();
+    //System.out.println(cluster.toString());
+
+    Measurements.print();
+  }
+
   private static void processMachineAttribute(String[] attribute) {
     //LOG.info(Arrays.toString(attribute));
     if (attribute == null) {
       return;
     }
-
-    // TODO: [MAJOR] Attribute updates are irrespective of node updates, removal, addition.
-    // Solution: Do not remove nodes on REMOVE events but mark them as delete=1. They still may need attribute updates.
-    // Ignoring them for now.
     boolean isDeleted = Integer.parseInt(attribute[4]) == 0 ? false : true;
     if (!isDeleted) {
       cluster.addAttribute(attribute);

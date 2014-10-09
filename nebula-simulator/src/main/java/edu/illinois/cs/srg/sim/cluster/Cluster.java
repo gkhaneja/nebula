@@ -1,14 +1,12 @@
 package edu.illinois.cs.srg.sim.cluster;
 
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.omg.SendingContext.RunTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
+import java.util.*;
 
 
 //TODO: Assumption: Not using task_usage data for now. It's huge!
@@ -26,6 +24,9 @@ import java.util.Map;
 public class Cluster {
   private static final Logger LOG = LoggerFactory.getLogger(Cluster.class);
   private Map<Long, Node> nodes;
+
+  public double cpu = 0;
+  public double memory = 0;
 
   public Cluster() {
     nodes = Maps.newHashMap();
@@ -45,26 +46,39 @@ public class Cluster {
     } else {
       nodes.put(id, new Node(node));
     }
+
+    cpu += nodes.get(id).getCpu();
+    memory += nodes.get(id).getMemory();
     return id;
   }
 
   public void remove(String node[]) {
+
     long id = Long.parseLong(node[1]);
     if (!nodes.containsKey(id) || (nodes.containsKey(id) && nodes.get(id).isDeleted())) {
       LOG.error("Cannot remove non-existent node: " + Arrays.toString(node));
       throw new RuntimeException("Cannot remove non-existent node: " + Arrays.toString(node));
     } else if (nodes.containsKey(id)) {
       nodes.get(id).markDeleted(node);
+      cpu -= nodes.get(id).getCpu();
+      memory -= nodes.get(id).getMemory();
     }
   }
 
-  public void update(String[] node) {
-    long id = Long.parseLong(node[1]);
+  public void update(String[] event) {
+    long id = Long.parseLong(event[1]);
     if (!nodes.containsKey(id) || nodes.get(id).isDeleted()) {
-      LOG.error("Cannot update non-existent node: " + Arrays.toString(node));
-      throw new RuntimeException("Cannot update non-existent node: " + Arrays.toString(node));
+      LOG.error("Cannot update non-existent node: " + Arrays.toString(event));
+      throw new RuntimeException("Cannot update non-existent node: " + Arrays.toString(event));
     } else {
-      nodes.get(id).update(node);
+      Node node = nodes.get(id);
+      cpu -= node.getCpu();
+      memory -= node.getMemory();
+
+      nodes.get(id).update(event);
+
+      cpu += node.getCpu();
+      memory += node.getMemory();
     }
   }
 
@@ -132,5 +146,33 @@ public class Cluster {
   public long getSafeSize() {
     //TODO:
     return 0;
+  }
+
+  public void printStats() {
+    List<Integer> attributes = Lists.newArrayList();
+    int totalAttr = 0;
+    for (Node node : nodes.values()) {
+      attributes.add(node.attributes.size());
+      totalAttr += node.attributes.size();
+    }
+    Collections.sort(attributes, new Comparator<Integer>() {
+      @Override
+      public int compare(Integer o1, Integer o2) {
+        return -1*o1.compareTo(o2);
+      }
+    });
+
+    //LOG.info(attributes.toString());
+    LOG.info("Machines #: {}", nodes.size());
+    LOG.info("Atytributes #: {}", totalAttr);
+  }
+
+  @Override
+  public String toString() {
+    StringBuilder builder = new StringBuilder();
+    for (Node node : nodes.values()) {
+      builder.append(node.toStringWithoutAttributes()).append("\n");
+    }
+    return builder.toString();
   }
 }

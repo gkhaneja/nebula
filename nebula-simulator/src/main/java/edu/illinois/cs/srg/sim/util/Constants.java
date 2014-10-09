@@ -18,14 +18,24 @@ public class Constants {
   public static final String SORTED_TASK_CONSTRAINTS = "sorted_task_constraints";
   public static final String APP_EVENTS = "apps";
 
+  public static final String SUBMIT_JOB_EVENTS = "submit_job_events";
+  public static final String FILTERED_CONSTRAINED = "filtered_constraints";
+  public static final String END_EVENTS = "end_events";
+  public static final String END_EVENTS_SHORT = "end_events_short";
+
   public static final String DEBUG_MACHINE_EVENTS = "debug_machine_events";
-  public static final String DEBUG_JOB_EVENTS = "debug_job_events";
+  public static final String DEBUG_JOB_EVENTS = "debug_submit_job_events";
+  public static final String DEBUG_SUBMIT_JOB_EVENTS = "debug_job_events";
   public static final String DEBUG_SUBMIT_TASK_EVENTS = "debug_submit_task_events";
   public static final String DEBUG_MACHINE_ATTRIBUTES = "debug_machine_attributes";
   public static final String DEBUG_SORTED_TASK_CONSTRAINTS = "debug_sorted_task_constraints";
+  public static final String DEBUG_FILTERED_CONSTRAINTS = "debug_filtered_constraints";
+  public static final String DEBUG_END_EVENTS = "debug_end_events";
+
 
   public static final double OS_CPU_FRACTION = 0.2;
   public static final double OS_MEMORY_FRACTION = 0.2;
+
 
   // TODO: Not implemented completely.
   public static boolean DISABLE_RUNTIME_EXCEPTION = false;

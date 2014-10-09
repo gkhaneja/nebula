@@ -47,5 +47,15 @@ public class TaskEvent {
     return memory;
   }
 
+  public static long getMachineID(String[] event) {
+    long machineID;
+    try {
+      machineID = Long.parseLong(event[4]);
+    } catch (Exception e) {
+      machineID = 0;
+    }
+    return machineID;
+  }
+
 
 }

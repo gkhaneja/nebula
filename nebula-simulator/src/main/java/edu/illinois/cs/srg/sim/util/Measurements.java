@@ -47,6 +47,8 @@ public class Measurements {
     //LOG.info("Constraints before tasks: " + Measurements.constraintsBeforeTask);
     //LOG.info("Constraints after tasks: " + Measurements.constraintsAfterTask + "\n");
 
+
+
     LOG.info("Job events: " + Measurements.jobEvents);
     LOG.info("jobSubmitEvents: " + Measurements.jobSubmitEvents);
     LOG.info("Task events: " + Measurements.taskEvents);

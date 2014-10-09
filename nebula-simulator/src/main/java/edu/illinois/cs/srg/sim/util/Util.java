@@ -22,7 +22,7 @@ public class Util {
   private static final Random random = new Random(System.currentTimeMillis());
   public static final Map<Long, Long> durationStats = Maps.newHashMap();
 
-  public static final String LOG_HOME = "/Users/gourav/code/logs/nebula/";
+  public static String TRACE_HOME = "/Users/gourav/projects/googleTraceData/clusterdata-2011-1/";
 
   public static Long parseTimestamp(String timestamp) {
     long time;
@@ -83,13 +83,18 @@ public class Util {
 
   }
 
+  /**
+   * prints sorted constraints
+   * @param list
+   * @param filename
+   */
   public static void print(List<String[]> list, String filename) {
-    File file = new File(LOG_HOME + filename);
+    File file = new File(TRACE_HOME + "/" + Constants.SORTED_TASK_CONSTRAINTS + "/" + filename);
     if(!file.exists()) {
       try {
         file.createNewFile();
       } catch (IOException e) {
-        LOG.error("Cannot create file: " + LOG_HOME + file, e);
+        LOG.error("Cannot create file: " + TRACE_HOME + file, e);
         return;
       }
     }
@@ -110,17 +115,17 @@ public class Util {
       }
       writer.close();
     } catch (IOException e) {
-      LOG.error("Cannot write to file: " + LOG_HOME + file, e);
+      LOG.error("Cannot write to file: " + TRACE_HOME + file, e);
     }
   }
 
   public static void print(Object object, String sample) {
-    File file = new File(LOG_HOME + sample);
+    File file = new File(TRACE_HOME + "/" + sample);
     if(!file.exists()) {
       try {
         file.createNewFile();
       } catch (IOException e) {
-        LOG.error("Cannot create file: " + LOG_HOME + sample, e);
+        LOG.error("Cannot create file: " + TRACE_HOME + sample, e);
         return;
       }
     }
@@ -129,7 +134,7 @@ public class Util {
       writer.write("" + object);
       writer.close();
     } catch (IOException e) {
-      LOG.error("Cannot write to file: " + LOG_HOME + sample, e);
+      LOG.error("Cannot write to file: " + TRACE_HOME + sample, e);
     }
 
   }
