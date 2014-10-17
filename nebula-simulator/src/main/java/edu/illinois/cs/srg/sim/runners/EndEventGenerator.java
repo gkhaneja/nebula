@@ -1,17 +1,12 @@
-package edu.illinois.cs.srg.sim.util;
+package edu.illinois.cs.srg.sim.runners;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Queues;
 import edu.illinois.cs.srg.sim.omega.OmegaSimulator;
-import edu.illinois.cs.srg.sim.task.ConstraintEvent;
-import edu.illinois.cs.srg.sim.task.EndEvent;
-import edu.illinois.cs.srg.sim.task.TaskDiet;
 import edu.illinois.cs.srg.sim.task.TaskEvent;
+import edu.illinois.cs.srg.sim.util.*;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
-import java.util.Iterator;
-import java.util.List;
 import java.util.Queue;
 
 /**

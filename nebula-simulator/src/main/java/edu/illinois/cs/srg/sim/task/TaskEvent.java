@@ -23,8 +23,8 @@ public class TaskEvent {
     return Integer.parseInt(event[3]);
   }
 
-  public static long getEventType(String[] event) {
-    return Long.parseLong(event[5]);
+  public static int getEventType(String[] event) {
+    return Integer.parseInt(event[5]);
   }
 
   public static double getCPU(String[] event) {

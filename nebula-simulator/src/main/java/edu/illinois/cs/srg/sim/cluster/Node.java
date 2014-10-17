@@ -35,6 +35,12 @@ public class Node {
     attributes = Maps.newHashMap();
   }
 
+  public Node(long id, double cpu, double memory) {
+    this.id = id;
+    this.cpu = cpu;
+    this.memory = memory;
+  }
+
   public long getId() {
     return id;
   }

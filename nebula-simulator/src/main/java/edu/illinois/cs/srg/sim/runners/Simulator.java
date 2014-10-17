@@ -1,4 +1,4 @@
-package edu.illinois.cs.srg.sim.util;
+package edu.illinois.cs.srg.sim.runners;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -7,6 +7,7 @@ import edu.illinois.cs.srg.sim.cluster.*;
 import edu.illinois.cs.srg.sim.omega.OmegaSimulator;
 import edu.illinois.cs.srg.sim.task.EndEvent;
 import edu.illinois.cs.srg.sim.task.TaskEvent;
+import edu.illinois.cs.srg.sim.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -16,12 +17,7 @@ import java.util.*;
 /**
  * Created by gourav on 9/9/14.
  */
-public class Simulator {
-  private static final Logger LOG = LoggerFactory.getLogger(Simulator.class);
-
-  private Cluster cluster;
-  private Map<Integer, String[]> lastConstraintEvents;
-  private Map<String, DefaultApplication> applications;
+public class Simulator extends AbstractSimulator {
 
   private TaskProcessor taskProcessor;
 
@@ -47,44 +43,6 @@ public class Simulator {
 
     collector.print();
   }
-
-  public void simulate(String[] files, Processor[] processors, Collector collector) {
-
-    if (files.length != processors.length) {
-      LOG.error("files and processor length should be same: {}, {}", Arrays.toString(files), Arrays.toString(processors));
-      return;
-    }
-    int size = files.length;
-    GoogleTraceReader googleTraceReader = new GoogleTraceReader(Util.TRACE_HOME);
-
-    Iterator<String[]>[] iterators = new Iterator[size];
-    for (int i=0; i<size; i++) {
-      iterators[i] = googleTraceReader.open(files[i]);
-    }
-
-    Event[] events = new Event[size];
-    for (int i=0; i<size; i++) {
-      if(iterators[i].hasNext()) {
-        events[i] = new Event(iterators[i].next());
-      } else {
-        events[i] = null;
-      }
-    }
-
-    while (OmegaSimulator.keepRolling(events)) {
-
-      int index = OmegaSimulator.next(events);
-
-      processors[index].process(events[index].getEvent());
-      events[index] = null;
-      if (iterators[index].hasNext()) {
-        events[index] = new Event(iterators[index].next());
-      }
-      collector.collect();
-    }
-    Measurements.print();
-  }
-
 
   class ClusterUtilization implements Collector {
     Map<String, Long> utils = Maps.newHashMap();
@@ -172,46 +130,6 @@ public class Simulator {
       }
       taskProcessor.cpuRequirement -= EndEvent.getCPU(event);
       taskProcessor.memRequirement -= EndEvent.getMemory(event);
-    }
-  }
-
-  public static void analyzeMachines() {
-    GoogleTraceReader googleTraceReader =
-      new GoogleTraceReader(NebulaConfiguration.getNebulaSite().getGoogleTraceHome());
-    Iterator<String[]> attributeIterator = googleTraceReader.open(Constants.MACHINE_ATTRIBUTES);
-    Iterator<String[]> eventIterator = googleTraceReader.open(Constants.MACHINE_EVENTS);
-
-    String[] event = null;
-    String[] attribute = null;
-    if (eventIterator.hasNext()) {
-      event = eventIterator.next();
-    }
-    if (attributeIterator.hasNext()) {
-      attribute = attributeIterator.next();
-    }
-    while (event!=null || attribute!=null) {
-
-      long eventTime = Long.MAX_VALUE;
-      if (event != null) {
-        eventTime = Long.parseLong(event[0]);
-      }
-      long attributeTime = Long.MAX_VALUE;
-      if (attribute != null) {
-        attributeTime = Long.parseLong(attribute[0]);
-      }
-      if (eventTime <= attributeTime) {
-        //processMachineEvent(event);
-        event = null;
-        if (eventIterator.hasNext()) {
-          event = eventIterator.next();
-        }
-      } else {
-        //processMachineAttribute(attribute);
-        attribute = null;
-        if (attributeIterator.hasNext()) {
-          attribute = attributeIterator.next();
-        }
-      }
     }
   }
 

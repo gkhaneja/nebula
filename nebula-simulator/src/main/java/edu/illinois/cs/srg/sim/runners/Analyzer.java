@@ -1,4 +1,4 @@
-package edu.illinois.cs.srg.sim.util;
+package edu.illinois.cs.srg.sim.runners;
 
 import com.google.common.collect.*;
 import com.panayotis.gnuplot.JavaPlot;
@@ -8,9 +8,9 @@ import edu.illinois.cs.srg.sim.job.JobEvent;
 import edu.illinois.cs.srg.sim.job.JobManager;
 import edu.illinois.cs.srg.sim.omega.OmegaSimulator;
 import edu.illinois.cs.srg.sim.task.ConstraintEvent;
-import edu.illinois.cs.srg.sim.task.TaskArrivalComparator;
 import edu.illinois.cs.srg.sim.task.TaskEvent;
 import edu.illinois.cs.srg.sim.task.TaskLight;
+import edu.illinois.cs.srg.sim.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,7 +43,7 @@ public class Analyzer {
     jobManager = new JobManager();
 
     //Util.checkpoint();
-    //edu.illinois.cs.srg.sim.util.Analyzer.analyzeMachines();
+    //edu.illinois.cs.srg.sim.runners.Analyzer.analyzeMachines();
     Analyzer.sortConstraints();
     //checkpoint();
   }

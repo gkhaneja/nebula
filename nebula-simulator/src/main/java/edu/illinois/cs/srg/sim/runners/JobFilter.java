@@ -1,7 +1,9 @@
-package edu.illinois.cs.srg.sim.util;
+package edu.illinois.cs.srg.sim.runners;
 
 import com.google.common.collect.Sets;
 import edu.illinois.cs.srg.sim.job.JobEvent;
+import edu.illinois.cs.srg.sim.runners.TraceFilter;
+import edu.illinois.cs.srg.sim.util.Constants;
 
 import java.util.Set;
 
